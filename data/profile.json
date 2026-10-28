@@ -1,0 +1,63 @@
+{
+  "name": "James Aranda",
+  "handle": "@ehyenma.nft",
+  "headline": "Desarrollador de software · Creador digital · Web3",
+  "location": "La Guaira, Venezuela",
+  "avatar": "",
+  "github": "ehyenmanft",
+  "bio": "Apasionado por los videojuegos, la programación y las criptomonedas. Construyo herramientas útiles de punta a punta: editores de vídeo retro, monitores sísmicos y climáticos en tiempo real, conversores de documentos con OCR y utilidades de escritorio para Windows.",
+  "interests": ["Videojuegos", "Programación", "Criptomonedas y NFT", "Datos abiertos"],
+
+  "links": [
+    { "label": "GitHub", "url": "https://github.com/ehyenmanft" },
+    { "label": "LinkedIn", "url": "" },
+    { "label": "Instagram", "url": "https://www.instagram.com/ehyenma.nft/" },
+    { "label": "X / Twitter", "url": "https://x.com/slayerjamez" },
+    { "label": "Email", "url": "mailto:ehyenma.nft@gmail.com" }
+  ],
+
+  "featuredRepos": ["monitor-sismico", "kidcut", "pdfamd", "mobiforce-now"],
+  "hiddenRepos": ["ehyenmanft.github.io", "portafolio"],
+  "repoDescriptions": {
+    "kidcut": "Editor de vídeo retro 8-bit para Windows y web, con grabador de pantalla, ecualizador, conversor y voz con anti-acople (KidNoez)."
+  },
+
+  "skills": [
+    {
+      "group": "Web",
+      "items": [
+        { "name": "JavaScript", "repos": ["kidcut", "mobiforce-now", "formulario-bilingue", "amazona-fitness-dashboard"] },
+        { "name": "HTML y CSS", "repos": ["monitor-sismico", "ciclon-monitor"] },
+        { "name": "PWA", "repos": ["monitor-sismico", "mobiforce-now"] },
+        { "name": "Three.js / 3D", "repos": ["monitor-sismico"] },
+        { "name": "Dashboards", "repos": ["amazona-fitness-dashboard", "ciclon-monitor", "monitor-sismico"] }
+      ]
+    },
+    {
+      "group": "Escritorio",
+      "items": [
+        { "name": "Electron + Vite", "repos": ["kidcut"] },
+        { "name": "Python + tkinter", "repos": ["escaner-redes", "pdfamd", "traductor"] },
+        { "name": "Apps .exe para Windows", "repos": ["kidcut", "pdfamd", "escaner-redes"] }
+      ]
+    },
+    {
+      "group": "Datos y medios",
+      "items": [
+        { "name": "Vídeo y audio", "repos": ["kidcut"] },
+        { "name": "OCR y documentos", "repos": ["pdfamd"] },
+        { "name": "APIs de datos abiertos", "repos": ["monitor-sismico", "ciclon-monitor"] },
+        { "name": "Redes locales", "repos": ["escaner-redes"] }
+      ]
+    },
+    {
+      "group": "Web3",
+      "items": [
+        { "name": "Cripto y NFT", "repos": [] }
+      ]
+    }
+  ],
+
+  "experience": [],
+  "education": []
+}

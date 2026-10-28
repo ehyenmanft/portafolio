@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>James Aranda · Portafolio</title>
+  <meta name="description" content="Portafolio y CV interactivo de James Aranda (@ehyenma.nft): proyectos, habilidades y redes en forma de red neuronal.">
+  <meta property="og:title" content="James Aranda · Portafolio">
+  <meta property="og:description" content="Proyectos, habilidades y CV en una red neuronal interactiva.">
+  <meta property="og:image" content="https://avatars.githubusercontent.com/u/116576579?v=4">
+  <meta name="theme-color" content="#05060f">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <canvas id="stars" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <a class="brand" href="#" id="brand">
+      <span class="pulse-dot"></span>
+      <span id="brand-name">James Aranda</span>
+      <small id="brand-handle">@ehyenma.nft</small>
+    </a>
+    <nav class="views" aria-label="Vista">
+      <button type="button" data-view="net" class="active" aria-pressed="true">Red</button>
+      <button type="button" data-view="cv" aria-pressed="false">CV</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="net" class="view">
+      <svg id="graph" role="img" aria-label="Red neuronal interactiva con proyectos, habilidades, experiencia y redes"></svg>
+      <div class="legend" id="legend"></div>
+      <div class="hint">Arrastra · rueda para zoom · clic en una neurona</div>
+      <div class="source" id="source"></div>
+    </section>
+    <section id="cv" class="view" hidden></section>
+  </main>
+
+  <aside id="panel" aria-hidden="true" aria-live="polite">
+    <button type="button" class="close" aria-label="Cerrar">&times;</button>
+    <div class="panel-body"></div>
+  </aside>
+
+  <div id="loader"><span></span>Conectando neuronas…</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
