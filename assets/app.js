@@ -1027,8 +1027,9 @@
     $('#cv').innerHTML = `<div class="cv">
       <div class="cv-head">
         <img src="${esc(P.avatar || U.avatar_url)}" alt="Foto de ${esc(P.name)}">
-        <div><h1>${esc(P.name)}</h1><p>${P.alias ? `${esc(P.alias)}, ` : ''}${esc(P.headline)} en ${esc(P.location || '')}</p></div>
+        <div><h1>${esc(P.name)}</h1>${P.alias ? `<p class="cv-alias">${esc(P.alias)}</p>` : ''}<p>${esc(P.headline)} en ${esc(P.location || '')}</p></div>
       </div>
+      <ul class="cv-contact">${links.map(l => `<li><span>${esc(l.label)}</span> ${esc(bare(l.url))}</li>`).join('')}</ul>
       <div class="actions">
         <button class="btn" type="button" onclick="print()">Imprimir o guardar PDF</button>
         ${links.map(l => linkBtn(l.label, l.url, true)).join('')}
@@ -1038,7 +1039,7 @@
       <h2>Proyectos</h2>
       <ul class="items">${graph.repos.map(r => {
         const href = r.homepage || r.url;
-        const inner = `<b>${esc(r.title)}</b><span>${esc(r.description || r.language || '')}</span>`;
+        const inner = `<b>${esc(r.title)}</b><span>${esc(brief(r.description, 200) || r.language || '')}</span>${href ? `<span class="cv-url">${esc(bare(href))}</span>` : ''}`;
         return `<li>${href ? `<a class="item" href="${esc(href)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="item">${inner}</div>`}</li>`;
       }).join('')}</ul>
       ${P.skills?.length ? `<h2>Habilidades</h2><dl class="cv-skills">${P.skills.map(g => `<dt>${esc(g.group)}</dt><dd>${esc(g.items.map(s => s.name).join(', '))}</dd>`).join('')}</dl>` : ''}
