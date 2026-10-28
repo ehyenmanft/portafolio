@@ -1,8 +1,8 @@
 # Portafolio · James Aranda (@ehyenma.nft)
 
-Portafolio y CV interactivo en forma de **red neuronal**: la foto de perfil es la neurona central y de ella salen las ramas (Sobre mí, Proyectos, Lenguajes, Habilidades, Experiencia, Redes). Las líneas punteadas son sinapsis entre ramas: cada proyecto se conecta con su lenguaje y con las habilidades que usa.
+Portafolio y CV interactivo: una **joya central** (con mi foto engastada) de la que, al ir deslizando, nacen como **rayos animados** las ramas: Sobre mí, Proyectos, Lenguajes, Habilidades, Experiencia y Redes. Cada capítulo del scroll enciende una rama y la cámara viaja hasta ella; al final se ve toda la red, con las conexiones cruzadas entre proyectos, lenguajes y habilidades.
 
-Sitio estático (HTML + CSS + JS con [D3](https://d3js.org)), sin compilación.
+Sitio estático (HTML + CSS + JS con Canvas 2D), sin dependencias ni compilación. Es responsive: en móvil y tableta vertical la red ocupa la parte de arriba y el texto sube por debajo.
 
 ## De dónde salen los datos
 
@@ -36,6 +36,8 @@ Todo está en `data/profile.json`:
 - `avatar`: deja vacío para usar la foto de GitHub, o pon la URL de otra imagen.
 
 Los repos nuevos que subas a GitHub aparecen solos.
+
+Al cambiar CSS o JS, sube el número `?v=` en `index.html` para que los navegadores no usen la versión en caché.
 
 ## Ver en local
 

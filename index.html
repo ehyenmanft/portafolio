@@ -4,23 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>James Aranda · Portafolio</title>
-  <meta name="description" content="Portafolio y CV interactivo de James Aranda (@ehyenma.nft): proyectos, habilidades y redes en forma de red neuronal.">
+  <meta name="description" content="Portafolio y CV interactivo de James Aranda (@ehyenma.nft): una joya central de la que nacen, como rayos, proyectos, habilidades y redes.">
   <meta property="og:title" content="James Aranda · Portafolio">
-  <meta property="og:description" content="Proyectos, habilidades y CV en una red neuronal interactiva.">
+  <meta property="og:description" content="Proyectos, habilidades y CV que se despliegan como rayos desde una joya central.">
   <meta property="og:image" content="https://avatars.githubusercontent.com/u/116576579?v=4">
-  <meta name="theme-color" content="#05060f">
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#06060b">
+  <link rel="icon" href="assets/favicon.svg?v=3" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=2">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;700&family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=3">
 </head>
 <body>
-  <canvas id="stars" aria-hidden="true"></canvas>
+  <canvas id="sky" aria-hidden="true"></canvas>
 
   <header class="topbar">
-    <a class="brand" href="#" id="brand">
-      <span class="pulse-dot"></span>
+    <a class="brand" href="#top" id="brand">
+      <svg class="brand-gem" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" /><path d="M2 9h20M9 3 7.5 9 12 21M15 3l1.5 6L12 21" /></svg>
       <span id="brand-name">James Aranda</span>
       <small id="brand-handle">@ehyenma.nft</small>
     </a>
@@ -30,14 +30,10 @@
     </nav>
   </header>
 
-  <main>
-    <section id="net" class="view">
-      <svg id="graph" role="img" aria-label="Red neuronal interactiva con proyectos, habilidades, experiencia y redes"></svg>
-      <div class="legend" id="legend"></div>
-      <div class="hint">Arrastra · rueda para zoom · clic en una neurona</div>
-      <div class="source" id="source"></div>
-    </section>
-    <section id="cv" class="view" hidden></section>
+  <main id="top">
+    <div id="story"></div>
+    <nav id="dots" aria-label="Capítulos"></nav>
+    <section id="cv" hidden></section>
   </main>
 
   <aside id="panel" aria-hidden="true" aria-live="polite">
@@ -45,9 +41,8 @@
     <div class="panel-body"></div>
   </aside>
 
-  <div id="loader"><span></span>Conectando neuronas…</div>
+  <div id="loader"><svg class="brand-gem big" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" /><path d="M2 9h20M9 3 7.5 9 12 21M15 3l1.5 6L12 21" /></svg>Tallando la joya…</div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-  <script src="assets/app.js?v=2"></script>
+  <script src="assets/app.js?v=3"></script>
 </body>
 </html>

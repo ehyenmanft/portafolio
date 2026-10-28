@@ -6,19 +6,22 @@
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const BRANCHES = {
-    about:    { label: 'Sobre mí',    color: '#f472b6' },
-    projects: { label: 'Proyectos',   color: '#38bdf8' },
-    langs:    { label: 'Lenguajes',   color: '#a78bfa' },
-    skills:   { label: 'Habilidades', color: '#34d399' },
-    career:   { label: 'Experiencia', color: '#fbbf24' },
-    social:   { label: 'Redes',       color: '#fb7185' },
+    about:    { label: 'Sobre mí',    color: '#ff7ad9' },
+    projects: { label: 'Proyectos',   color: '#7df9ff' },
+    langs:    { label: 'Lenguajes',   color: '#b69cff' },
+    skills:   { label: 'Habilidades', color: '#8dffb0' },
+    career:   { label: 'Experiencia', color: '#ffd27a' },
+    social:   { label: 'Redes',       color: '#ff8f6b' },
   };
-  const RING = [0, 170, 300, 420];        // radio objetivo por profundidad
-  const SIZE = { root: 44, hub: 17, sub: 11 };
+  const GEM_R = 64;       // radio de la joya (unidades de mundo)
+  const HUB_DIST = 430;   // distancia joya → rama
 
   // ---------- utilidades ----------
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth = t => t * t * (3 - 2 * t);
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } },
@@ -31,6 +34,10 @@
     return 'justo ahora';
   }
   const prettyName = n => n.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const hexA = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+  };
 
   async function getJSON(url) {
     const r = await fetch(url);
@@ -70,21 +77,19 @@
     const add = (n, parent) => {
       n.children = [];
       nodes.push(n); byId.set(n.id, n);
-      if (parent) { parent.children.push(n); n.parent = parent; links.push({ source: parent.id, target: n.id, kind: 'tree' }); }
+      if (parent) { parent.children.push(n); n.parent = parent; links.push({ a: parent, b: n, kind: 'tree' }); }
       return n;
     };
-    const cross = (a, b) => { if (byId.has(a) && byId.has(b)) links.push({ source: a, target: b, kind: 'cross' }); };
+    const cross = (a, b) => { if (byId.has(a) && byId.has(b)) links.push({ a: byId.get(a), b: byId.get(b), kind: 'cross' }); };
 
-    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.name, r: SIZE.root, data: { kind: 'root' } });
-    const hub = key => add({ id: `hub:${key}`, type: 'hub', depth: 1, branch: key, label: BRANCHES[key].label, r: SIZE.hub, data: { kind: 'hub' } }, root);
-    const child = (parent, n) => add({ type: 'leaf', depth: parent.depth + 1, branch: parent.branch, r: 7, ...n }, parent);
+    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.name, r: GEM_R, data: { kind: 'root' } });
+    const hub = key => add({ id: `hub:${key}`, type: 'hub', depth: 1, branch: key, label: BRANCHES[key].label, r: 15, data: { kind: 'hub' } }, root);
+    const child = (parent, n) => add({ type: 'leaf', depth: parent.depth + 1, branch: parent.branch, r: 6, ...n }, parent);
 
-    // Sobre mí
     const about = hub('about');
     if (P.location) child(about, { id: 'about:loc', label: P.location, data: { kind: 'text', title: 'Ubicación', text: P.location } });
     for (const i of P.interests || []) child(about, { id: `about:${i}`, label: i, data: { kind: 'text', title: i, text: 'Interés personal' } });
 
-    // Proyectos (GitHub, en vivo)
     const hidden = new Set((P.hiddenRepos || []).map(s => s.toLowerCase()));
     const featured = (P.featuredRepos || []).map(s => s.toLowerCase());
     const notes = P.repoDescriptions || {};
@@ -100,288 +105,612 @@
     const projects = hub('projects');
     for (const r of repos) {
       const isFeat = featured.includes(r.name.toLowerCase());
-      child(projects, {
-        id: `repo:${r.name}`, label: prettyName(r.name), r: 7 + Math.min(r.stars, 8) + (isFeat ? 3 : 0),
-        data: { kind: 'repo', repo: r, featured: isFeat },
-      });
+      child(projects, { id: `repo:${r.name}`, label: prettyName(r.name), r: 6 + Math.min(r.stars, 6) + (isFeat ? 3 : 0), data: { kind: 'repo', repo: r, featured: isFeat } });
     }
 
-    // Lenguajes (contados desde los repos)
-    const langCount = d3.rollup(repos.filter(r => r.language), v => v.length, r => r.language);
+    const langCount = new Map();
+    for (const r of repos) if (r.language) langCount.set(r.language, (langCount.get(r.language) || 0) + 1);
     if (langCount.size) {
       const langs = hub('langs');
       for (const [lang, n] of [...langCount].sort((a, b) => b[1] - a[1])) {
-        child(langs, { id: `lang:${lang}`, label: lang, r: 6 + n * 1.6, data: { kind: 'lang', lang, count: n } });
+        child(langs, { id: `lang:${lang}`, label: lang, r: 5 + n * 1.5, data: { kind: 'lang', lang, count: n } });
       }
       for (const r of repos) if (r.language) cross(`repo:${r.name}`, `lang:${r.language}`);
     }
 
-    // Habilidades (profile.json), con sinapsis hacia los proyectos donde se usan
     if (P.skills?.length) {
       const skills = hub('skills');
       for (const g of P.skills) {
-        const sub = child(skills, { id: `skg:${g.group}`, type: 'sub', label: g.group, r: SIZE.sub, data: { kind: 'group', group: g } });
+        const sub = child(skills, { id: `skg:${g.group}`, type: 'sub', label: g.group, r: 10, data: { kind: 'group', group: g } });
         for (const s of g.items) {
           const live = (s.repos || []).filter(n => byId.has(`repo:${n}`));
-          child(sub, { id: `sk:${g.group}:${s.name}`, label: s.name, r: 5 + live.length * 1.4, data: { kind: 'skill', skill: s, group: g.group, repos: live } });
+          child(sub, { id: `sk:${g.group}:${s.name}`, label: s.name, r: 5 + live.length, data: { kind: 'skill', skill: s, group: g.group, repos: live } });
           for (const n of live) cross(`sk:${g.group}:${s.name}`, `repo:${n}`);
         }
       }
     }
 
-    // Experiencia y formación (profile.json / LinkedIn)
     const linkedin = (P.links || []).find(l => /linkedin/i.test(l.label) && l.url);
     if (P.experience?.length || P.education?.length || linkedin) {
       const career = hub('career');
-      (P.experience || []).forEach((j, i) => child(career, { id: `job:${i}`, label: j.role, r: 9, data: { kind: 'job', job: j } }));
-      (P.education || []).forEach((j, i) => child(career, { id: `edu:${i}`, label: j.title, r: 8, data: { kind: 'job', job: j, edu: true } }));
-      if (linkedin) child(career, { id: 'career:linkedin', label: 'Perfil de LinkedIn', r: 8, data: { kind: 'link', link: linkedin } });
+      (P.experience || []).forEach((j, i) => child(career, { id: `job:${i}`, label: j.role, r: 8, data: { kind: 'job', job: j } }));
+      (P.education || []).forEach((j, i) => child(career, { id: `edu:${i}`, label: j.title, r: 7, data: { kind: 'job', job: j, edu: true } }));
+      if (linkedin) child(career, { id: 'career:linkedin', label: 'Perfil de LinkedIn', r: 7, data: { kind: 'link', link: linkedin } });
     }
 
-    // Redes
-    const links_ = (P.links || []).filter(l => l.url);
-    if (links_.length) {
+    const socialLinks = (P.links || []).filter(l => l.url);
+    if (socialLinks.length) {
       const social = hub('social');
-      for (const l of links_) child(social, { id: `link:${l.label}`, label: l.label, r: 8, data: { kind: 'link', link: l } });
+      for (const l of socialLinks) child(social, { id: `link:${l.label}`, label: l.label, r: 7, data: { kind: 'link', link: l } });
     }
 
-    return { nodes, links, byId, root, repos };
+    return { nodes, links, byId, root, repos, hubs: root.children };
   }
 
-  // ---------- render de la red ----------
-  function renderGraph(graph, P, G) {
-    const svg = d3.select('#graph');
-    const defs = svg.append('defs');
-    const glow = defs.append('filter').attr('id', 'glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
-    glow.append('feGaussianBlur').attr('stdDeviation', 3).attr('result', 'b');
-    const merge = glow.append('feMerge');
-    merge.append('feMergeNode').attr('in', 'b');
-    merge.append('feMergeNode').attr('in', 'SourceGraphic');
-    defs.append('clipPath').attr('id', 'avatar-clip').append('circle').attr('r', SIZE.root - 3);
-
-    const world = svg.append('g');
-    const gLinks = world.append('g');
-    const gPulses = world.append('g').attr('filter', 'url(#glow)');
-    const gNodes = world.append('g');
-
-    // con poco zoom (móvil) se ocultan los nombres de las hojas y crecen los de las ramas
-    const zoom = d3.zoom().scaleExtent([0.25, 4]).on('zoom', e => {
-      world.attr('transform', e.transform).classed('far', e.transform.k < .7);
+  // ---------- disposición: cada rama se abre en abanico desde la joya ----------
+  function layout(graph) {
+    const n = graph.hubs.length;
+    graph.root.x = 0; graph.root.y = 0;
+    graph.hubs.forEach((h, i) => {
+      const a = -Math.PI / 2 + i * (Math.PI * 2 / n);
+      h.angle = a; h.x = Math.cos(a) * HUB_DIST; h.y = Math.sin(a) * HUB_DIST;
+      fan(h, a, 1);
     });
-    svg.call(zoom).on('dblclick.zoom', null);
-
-    const color = d => d.type === 'root' ? '#f472b6' : BRANCHES[d.branch].color;
-    const hubKeys = graph.root.children.map(h => h.branch);
-    const angleOf = {};
-    hubKeys.forEach((k, i) => { angleOf[k] = -Math.PI / 2 + (i / hubKeys.length) * Math.PI * 2; });
-    // cada nodo hereda un ángulo; los subgrupos se abren en abanico dentro de su rama
-    const spread = Math.min(.5, 2.2 / hubKeys.length);
-    const setAngle = (n, a) => {
-      n.angle = a;
-      const subs = n.children.filter(c => c.type === 'sub');
-      n.children.forEach(c => setAngle(c, c.type === 'sub' ? a + (subs.indexOf(c) - (subs.length - 1) / 2) * spread : a));
-    };
-    graph.root.children.forEach(h => setAngle(h, angleOf[h.branch]));
-
-    // posición inicial cerca de su sector para que la red "brote" ordenada
-    for (const n of graph.nodes) {
-      if (n.type === 'root') { n.fx = 0; n.fy = 0; continue; }
-      const a = n.angle + (Math.random() - .5) * .9;
-      const rad = RING[n.depth] * (REDUCED ? 1 : .15);
-      n.x = Math.cos(a) * rad; n.y = Math.sin(a) * rad;
-    }
-
-    // fuerza propia: cada rama tira hacia su sector y su anillo
-    function sectorForce(alpha) {
-      for (const n of sim.nodes()) {
-        if (n.type === 'root') continue;
-        const a = n.angle, rad = RING[Math.min(n.depth, 3)];
-        const k = (n.type === 'hub' ? .12 : n.type === 'sub' ? .05 : .02) * alpha;
-        n.vx += (Math.cos(a) * rad - n.x) * k;
-        n.vy += (Math.sin(a) * rad - n.y) * k;
-      }
-    }
-
-    const sim = d3.forceSimulation()
-      .force('link', d3.forceLink().id(d => d.id)
-        .distance(l => l.kind === 'cross' ? 160 : l.target.type === 'hub' ? 140 : l.target.type === 'sub' ? 90 : 70)
-        .strength(l => l.kind === 'cross' ? .008 : .7))
-      .force('charge', d3.forceManyBody().strength(d => d.type === 'root' ? -900 : d.type === 'hub' ? -420 : -190))
-      .force('collide', d3.forceCollide(d => d.type === 'leaf' ? Math.max(d.r + 12, d.label.length * 3.1) : d.r + 24).iterations(3))
-      .force('radial', d3.forceRadial(d => RING[Math.min(d.depth, 3)], 0, 0).strength(d => d.type === 'leaf' ? .06 : .03))
-      .force('sector', sectorForce)
-      .alphaDecay(.025);
-
-    let linkSel = gLinks.selectAll('path'), nodeSel = gNodes.selectAll('g.node');
-    let visLinks = [], adjacency = new Map(), selectedId = null;
-
-    function visibleSet() {
-      const out = new Set();
-      const walk = n => { out.add(n.id); if (!n.collapsed) n.children.forEach(walk); };
-      walk(graph.root);
-      return out;
-    }
-
-    function curve(l) {
-      const s = l.source, t = l.target;
-      const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2, dx = t.x - s.x, dy = t.y - s.y;
-      const bend = l.kind === 'cross' ? .25 : .12;
-      return { sx: s.x, sy: s.y, cx: mx - dy * bend, cy: my + dx * bend, tx: t.x, ty: t.y };
-    }
-    const pathD = l => { const c = curve(l); return `M${c.sx},${c.sy}Q${c.cx},${c.cy} ${c.tx},${c.ty}`; };
-
-    function update() {
-      const vis = visibleSet();
-      const vNodes = graph.nodes.filter(n => vis.has(n.id));
-      visLinks = graph.links.filter(l => vis.has(l.source.id ?? l.source) && vis.has(l.target.id ?? l.target));
-
-      sim.nodes(vNodes);
-      sim.force('link').links(visLinks);
-
-      adjacency = new Map(vNodes.map(n => [n.id, new Set([n.id])]));
-      for (const l of visLinks) { adjacency.get(l.source.id).add(l.target.id); adjacency.get(l.target.id).add(l.source.id); }
-
-      linkSel = gLinks.selectAll('path').data(visLinks, l => `${l.source.id}>${l.target.id}`).join('path')
-        .attr('class', l => `link ${l.kind}`)
-        .attr('stroke', l => color(l.kind === 'cross' ? l.source : l.target))
-        .attr('stroke-opacity', l => l.kind === 'cross' ? 1 : .45);
-
-      nodeSel = gNodes.selectAll('g.node').data(vNodes, d => d.id).join(enter => {
-        const g = enter.append('g')
-          .attr('class', d => `node ${d.type}`)
-          .attr('tabindex', 0).attr('role', 'button')
-          .attr('aria-label', d => d.label);
-        g.append('circle').attr('class', 'halo').attr('r', d => d.r + (d.type === 'root' ? 16 : 8)).attr('fill', color);
-        g.filter(d => d.type !== 'root').append('circle').attr('class', 'core').attr('r', d => d.r).attr('fill', color);
-        const rt = g.filter(d => d.type === 'root');
-        rt.append('circle').attr('class', 'ring spin').attr('r', SIZE.root + 9).attr('stroke', '#38bdf8');
-        rt.append('circle').attr('class', 'ring').attr('r', SIZE.root).attr('stroke', '#f472b6').attr('fill', '#0b0e1f');
-        rt.append('image').attr('href', P.avatar || G.user.avatar_url)
-          .attr('x', -(SIZE.root - 3)).attr('y', -(SIZE.root - 3)).attr('width', (SIZE.root - 3) * 2).attr('height', (SIZE.root - 3) * 2)
-          .attr('clip-path', 'url(#avatar-clip)').attr('preserveAspectRatio', 'xMidYMid slice');
-        g.append('text').attr('dy', d => d.r + (d.type === 'root' ? 30 : d.type === 'leaf' ? 14 : 20)).text(d => d.label);
-        g.on('click', (e, d) => { e.stopPropagation(); select(d); })
-          .on('keydown', (e, d) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(d); } })
-          .on('mouseenter focus', (e, d) => highlight(d))
-          .on('mouseleave blur', () => highlight(selectedId ? graph.byId.get(selectedId) : null))
-          .call(drag);
-        return g;
+    function fan(p, a, level) {
+      const kids = p.children, k = kids.length;
+      if (!k) return;
+      const hasSubs = kids.some(c => c.type === 'sub');
+      const span = level === 1 ? Math.min(2.4, .36 * k) : Math.min(1.5, .42 * k);
+      const rows = k > 7 ? 3 : k > 3 ? 2 : 1;
+      const base = hasSubs ? 200 : level === 1 ? 165 : 115;
+      kids.forEach((c, j) => {
+        const ca = a + (k === 1 ? 0 : (j / (k - 1) - .5) * span);
+        const d = base + (j % rows) * (level === 1 ? 62 : 48);
+        c.angle = ca; c.x = p.x + Math.cos(ca) * d; c.y = p.y + Math.sin(ca) * d;
+        fan(c, ca, level + 1);
       });
-      nodeSel.classed('collapsed', d => !!d.collapsed).classed('selected', d => d.id === selectedId);
+    }
+  }
 
-      sim.alpha(.6).restart();
+  // ---------- rayos ----------
+  // desplazamiento del punto medio: una línea quebrada con aspecto de descarga eléctrica
+  function boltPath(x1, y1, x2, y2, rough = .2, iters = 6) {
+    let pts = [[x1, y1], [x2, y2]];
+    let disp = Math.hypot(x2 - x1, y2 - y1) * rough;
+    for (let i = 0; i < iters; i++) {
+      const next = [pts[0]];
+      for (let j = 1; j < pts.length; j++) {
+        const [ax, ay] = pts[j - 1], [bx, by] = pts[j];
+        const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+        const o = (Math.random() - .5) * disp;
+        next.push([(ax + bx) / 2 - dy / len * o, (ay + by) / 2 + dx / len * o], pts[j]);
+      }
+      pts = next; disp /= 2;
+    }
+    return pts;
+  }
+  function makeForks(path) {
+    const forks = [], n = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const at = .2 + Math.random() * .6, idx = Math.floor(at * (path.length - 1));
+      const [x, y] = path[idx], [nx, ny] = path[Math.min(idx + 4, path.length - 1)];
+      const a = Math.atan2(ny - y, nx - x) + (Math.random() < .5 ? -1 : 1) * (.4 + Math.random() * .6);
+      const len = 30 + Math.random() * 60;
+      forks.push({ at, pts: boltPath(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, .35, 4) });
+    }
+    return forks;
+  }
+
+  // ---------- escena ----------
+  function createScene(graph, P, G) {
+    const canvas = $('#sky'), ctx = canvas.getContext('2d');
+    let W = 0, H = 0, DPR = 1;
+    const cam = { x: 0, y: 0, k: 1 };
+    // mismo criterio que el CSS: móvil o tableta en vertical → texto abajo, red arriba
+    const stacked = () => W <= 760 || (W <= 1100 && H > W);
+    let hover = null, selected = null, flash = 0, lastT = performance.now(), crossReveal = 0;
+    let activeBranch = null;
+    const avatar = new Image();
+    let avatarAlpha = 0;
+    avatar.src = P.avatar || G.user.avatar_url;
+
+    // estrellas de fondo, en pantalla
+    let stars = [];
+    function resize() {
+      DPR = Math.min(devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      canvas.width = W * DPR; canvas.height = H * DPR;
+      stars = Array.from({ length: Math.round(W * H / 7000) }, () => ({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.1 + .2, p: Math.random() * 6.28, z: Math.random() }));
+      story.measure();
     }
 
-    const drag = d3.drag()
-      .filter(e => !e.button && !e.ctrlKey)
-      .on('start', (e, d) => { if (d.type === 'root') return; if (!e.active) sim.alphaTarget(.25).restart(); d.fx = d.x; d.fy = d.y; })
-      .on('drag', (e, d) => { if (d.type === 'root') return; d.fx = e.x; d.fy = e.y; })
-      .on('end', (e, d) => { if (d.type === 'root') return; if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; });
-
-    sim.on('tick', () => {
-      linkSel.attr('d', pathD);
-      nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
-    });
-
-    function highlight(d) {
-      if (!d) { nodeSel.classed('dim', false).classed('near', false); linkSel.classed('dim', false); return; }
-      const near = adjacency.get(d.id) || new Set([d.id]);
-      nodeSel.classed('dim', n => !near.has(n.id)).classed('near', n => near.has(n.id));
-      linkSel.classed('dim', l => l.source.id !== d.id && l.target.id !== d.id);
-      for (const l of visLinks) if (l.source.id === d.id || l.target.id === d.id) firePulse(l, l.target.id === d.id);
+    // aristas: los rayos del árbol tienen un orden de aparición dentro de su rama
+    const edges = graph.links.map(l => ({ ...l, grow: 0, target: 0, strike: 0, path: null, forks: [], regenAt: 0 }));
+    const tree = edges.filter(e => e.kind === 'tree');
+    const crossE = edges.filter(e => e.kind === 'cross');
+    const incoming = new Map(tree.map(e => [e.b.id, e]));
+    for (const h of graph.hubs) {
+      const order = [];
+      const q = [h];
+      while (q.length) { const n = q.shift(); order.push(incoming.get(n.id)); q.push(...n.children); }
+      order.forEach((e, i) => { e.threshold = .9 * i / order.length; });
     }
+    for (const n of graph.nodes) { n.pop = n.type === 'root' ? 1 : 0; }
 
-    function select(d) {
-      selectedId = d.id;
-      nodeSel.classed('selected', n => n.id === selectedId);
-      highlight(d);
-      openPanel(d);
+    function regen(e, rough) {
+      e.path = boltPath(e.a.x, e.a.y, e.b.x, e.b.y, rough ?? (e.kind === 'cross' ? .1 : .2), e.kind === 'cross' ? 5 : 6);
+      e.forks = e.kind === 'tree' && e.a.type !== 'sub' ? makeForks(e.path) : [];
     }
+    edges.forEach(e => regen(e));
 
-    function focusNode(d) {
-      let opened = false;
-      for (let p = d.parent; p; p = p.parent) if (p.collapsed) { p.collapsed = false; opened = true; }
-      if (opened) update();
-      setTimeout(() => {
-        // centra el nodo en la zona que el panel deja libre
-        const W = svg.node().clientWidth, H = svg.node().clientHeight;
-        const p = W < 640 ? [W / 2, H * .3] : [(W - 400) / 2, H / 2];
-        const k = Math.max(d3.zoomTransform(svg.node()).k, W < 640 ? .95 : 0);
-        const t = d3.zoomIdentity.translate(p[0], p[1]).scale(k).translate(-d.x, -d.y);
-        svg.transition().duration(REDUCED ? 0 : 650).call(zoom.transform, t);
-        select(d);
-      }, opened ? 450 : 0);
+    const queue = []; // impulsos programados: { t, e }
+    function strike(e, delay = 0) {
+      if (REDUCED) return;
+      queue.push({ t: performance.now() + delay, e });
     }
-
-    function toggleBranch(d) {
-      d.collapsed = !d.collapsed;
-      update();
-      openPanel(d);
-    }
-
-    function fit(duration = 750) {
-      const ns = sim.nodes();
-      if (!ns.length) return;
-      const [x0, x1] = d3.extent(ns, n => n.x), [y0, y1] = d3.extent(ns, n => n.y);
-      const W = svg.node().clientWidth, H = svg.node().clientHeight;
-      const pad = W < 640 ? 40 : 90;
-      const k = Math.min(1.4, Math.min((W - pad) / (x1 - x0 + 120), (H - pad - 60) / (y1 - y0 + 120)));
-      const t = d3.zoomIdentity.translate(W / 2, H / 2 + 10).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
-      svg.transition().duration(REDUCED ? 0 : duration).call(zoom.transform, t);
-    }
-
-    // ---------- impulsos sinápticos ----------
-    const pulses = [];
-    function firePulse(l, reverse = false, hops = 0) {
-      if (REDUCED || pulses.length > 70) return;
-      pulses.push({ l, t: 0, v: .012 + Math.random() * .012, reverse, hops });
-    }
-    function propagate(fromId, hops) {
-      if (hops > 2) return;
-      for (const l of visLinks) {
-        if (l.kind === 'tree' && l.source.id === fromId && Math.random() < .55) firePulse(l, false, hops + 1);
+    function cascade(e, depth) {
+      if (depth > 2) return;
+      for (const c of e.b.children) {
+        const ce = incoming.get(c.id);
+        if (ce.grow > .99 && Math.random() < .5) { strike(ce, 70 + Math.random() * 90); ce.depth = depth + 1; }
       }
     }
-    function pulseLoop() {
-      for (let i = pulses.length - 1; i >= 0; i--) {
-        const p = pulses[i];
-        p.t += p.v;
-        if (p.t >= 1) {
-          pulses.splice(i, 1);
-          if (!p.reverse) propagate(p.l.target.id, p.hops);
+
+    // ---------- cámara ----------
+    function viewArea() {
+      if (stacked()) return { x: 0, y: 64, w: W, h: H * .52 };
+      const left = Math.min(W * .44, 40 + Math.min(440, W * .38) + 40);
+      return { x: left, y: 64, w: W - left - 40, h: H - 96 };
+    }
+    // el margen va en píxeles de pantalla porque las etiquetas no escalan con el zoom
+    function fitCam(points) {
+      const A = viewArea();
+      const padX = stacked() ? 96 : 120, padY = 36;
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+      const k = clamp(Math.min((A.w - padX * 2) / (x1 - x0 || 1), (A.h - padY * 2) / (y1 - y0 || 1)), .16, 1.6);
+      return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k, A };
+    }
+    function camFor(i) {
+      const n = graph.hubs.length;
+      if (i <= 0) {
+        const A = viewArea();
+        return { x: 0, y: 0, k: clamp(Math.min(A.w, A.h) / (GEM_R * 5.2), .8, 2.4) };
+      }
+      if (i > n) return fitCam(graph.nodes);
+      const h = graph.hubs[i - 1], pts = [graph.root];
+      (function walk(x) { pts.push(x); x.children.forEach(walk); })(h);
+      return fitCam(pts);
+    }
+    const toScreen = (x, y) => {
+      const A = viewArea();
+      return [A.x + A.w / 2 + (x - cam.x) * cam.k, A.y + A.h / 2 + (y - cam.y) * cam.k];
+    };
+    const toWorld = (sx, sy) => {
+      const A = viewArea();
+      return [(sx - A.x - A.w / 2) / cam.k + cam.x, (sy - A.y - A.h / 2) / cam.k + cam.y];
+    };
+
+    // ---------- estado de scroll ----------
+    function scrollState() {
+      const { u } = story.progress();
+      const n = graph.hubs.length;
+      // la cámara se queda en el capítulo actual y viaja al siguiente en su segunda mitad
+      const i0 = Math.min(Math.floor(u), n + 1), f = smooth(clamp((u - i0 - .55) / .45));
+      const c0 = camFor(i0), c1 = camFor(Math.min(i0 + 1, n + 1));
+      const target = { x: lerp(c0.x, c1.x, f), y: lerp(c0.y, c1.y, f), k: lerp(c0.k, c1.k, f) };
+      const reveal = graph.hubs.map((_, i) => clamp((u - (i + 1) + .15) / .6));
+      crossReveal = clamp((u - (n + 1) + .2) / .4);
+      const active = Math.floor(u);
+      activeBranch = active >= 1 && active <= n ? graph.hubs[active - 1].branch : null;
+      return { target, reveal };
+    }
+
+    // ---------- dibujo ----------
+    function drawStars(t) {
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      for (const s of stars) {
+        const px = (s.x - cam.x * .04 * s.z) % W, py = (s.y - cam.y * .04 * s.z) % H;
+        ctx.globalAlpha = .2 + .4 * (REDUCED ? .5 : (Math.sin(t / 1300 + s.p) + 1) / 2);
+        ctx.fillStyle = s.z > .8 ? '#ffd27a' : '#cfe6ff';
+        ctx.fillRect(px < 0 ? px + W : px, py < 0 ? py + H : py, s.r, s.r);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function worldTransform() {
+      const A = viewArea();
+      ctx.setTransform(DPR * cam.k, 0, 0, DPR * cam.k, DPR * (A.x + A.w / 2 - cam.x * cam.k), DPR * (A.y + A.h / 2 - cam.y * cam.k));
+    }
+
+    function strokePts(pts, upto) {
+      const last = Math.floor(upto);
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i <= last && i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      if (last < pts.length - 1) {
+        const f = upto - last, [ax, ay] = pts[last], [bx, by] = pts[last + 1];
+        ctx.lineTo(ax + (bx - ax) * f, ay + (by - ay) * f);
+      }
+    }
+
+    function drawBolt(e, color, alphaMul) {
+      if (e.grow <= .001) return;
+      const pts = e.path, upto = e.grow * (pts.length - 1), k = cam.k;
+      const I = (e.kind === 'cross' ? .16 : .38 + (e.b.branch === activeBranch ? .14 : 0)) * alphaMul + e.strike * (.7 + .3 * Math.random());
+      const passes = e.kind === 'cross' ? [[3, .12], [1, .5]] : [[9, .05], [4, .16], [1.6, .55]];
+      for (const [w, a] of passes) {
+        strokePts(pts, upto);
+        ctx.strokeStyle = hexA(color, clamp(a * I * 1.6));
+        ctx.lineWidth = w / k * (e.kind === 'cross' ? .6 : 1);
+        ctx.stroke();
+      }
+      strokePts(pts, upto);
+      ctx.strokeStyle = `rgba(255,255,255,${clamp(.5 * I + e.strike * .6)})`;
+      ctx.lineWidth = (e.strike > .05 ? 1.3 : .8) / k;
+      ctx.stroke();
+      if (e.strike > .05 || e.grow < 1) {
+        for (const fk of e.forks) {
+          if (e.grow < fk.at) continue;
+          const g = clamp((e.grow - fk.at) / (1 - fk.at)) * (fk.pts.length - 1);
+          strokePts(fk.pts, g);
+          ctx.strokeStyle = hexA(color, clamp(.25 + e.strike * .7) * (e.grow < 1 ? 1 : e.strike));
+          ctx.lineWidth = .9 / k;
+          ctx.stroke();
         }
       }
-      gPulses.selectAll('circle').data(pulses).join('circle')
-        .attr('class', 'pulse')
-        .attr('r', p => p.l.kind === 'cross' ? 1.8 : 2.6)
-        .attr('fill', p => color(p.l.target))
-        .attr('cx', p => { const c = curve(p.l), t = p.reverse ? 1 - p.t : p.t; return (1 - t) ** 2 * c.sx + 2 * (1 - t) * t * c.cx + t * t * c.tx; })
-        .attr('cy', p => { const c = curve(p.l), t = p.reverse ? 1 - p.t : p.t; return (1 - t) ** 2 * c.sy + 2 * (1 - t) * t * c.cy + t * t * c.ty; });
-      requestAnimationFrame(pulseLoop);
-    }
-    if (!REDUCED) {
-      requestAnimationFrame(pulseLoop);
-      // latido: desde el centro sale una señal cada poco tiempo
-      setInterval(() => {
-        if (document.hidden) return;
-        const out = visLinks.filter(l => l.source.id === 'root');
-        if (out.length) firePulse(out[Math.floor(Math.random() * out.length)]);
-        const cr = visLinks.filter(l => l.kind === 'cross');
-        if (cr.length && Math.random() < .5) firePulse(cr[Math.floor(Math.random() * cr.length)], Math.random() < .5);
-      }, 520);
+      // chispa en la punta mientras el rayo avanza
+      if (e.grow < 1) {
+        const i = Math.floor(upto), [x, y] = pts[Math.min(i, pts.length - 1)];
+        const r = 14 / k;
+        const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
+        gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(.3, hexA(color, .6)); gr.addColorStop(1, hexA(color, 0));
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
+      }
     }
 
-    svg.on('click', () => { selectedId = null; nodeSel.classed('selected', false); highlight(null); closePanel(); });
-    addEventListener('resize', () => fit(0));
+    function crystal(x, y, r, sides, rot) {
+      ctx.beginPath();
+      for (let i = 0; i < sides; i++) {
+        const a = rot + i * 6.283 / sides;
+        const rr = sides === 4 && i % 2 ? r * .72 : r;
+        ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+    }
 
-    update();
-    setTimeout(() => fit(), REDUCED ? 50 : 1300);
+    function drawNode(n, t) {
+      if (n.pop <= .01) return;
+      const color = BRANCHES[n.branch].color;
+      const p = n.pop, s = p < 1 ? 1 + Math.sin(p * Math.PI) * .5 : 1;
+      const isHot = n === hover || n === selected;
+      const r = n.r * s * (isHot ? 1.35 : 1);
+      const near = hover && (hover === n || hover.parent === n || n.parent === hover || hoverCross.has(n.id));
+      const dim = hover && !near ? .35 : 1;
+      ctx.globalAlpha = p * dim;
+      const glowR = r * (n.type === 'hub' ? 4.2 : 3.2);
+      const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
+      gr.addColorStop(0, hexA(color, isHot ? .6 : .35)); gr.addColorStop(1, hexA(color, 0));
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(n.x, n.y, glowR, 0, 6.283); ctx.fill();
+      const rot = n.type === 'hub' ? t / 4000 : -Math.PI / 2;
+      crystal(n.x, n.y, r, n.type === 'hub' ? 6 : 4, rot);
+      const fill = ctx.createLinearGradient(n.x - r, n.y - r, n.x + r, n.y + r);
+      fill.addColorStop(0, '#ffffff'); fill.addColorStop(.45, color); fill.addColorStop(1, hexA(color, .5));
+      ctx.fillStyle = fill; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1 / cam.k; ctx.stroke();
+      if (n.type === 'hub') {
+        crystal(n.x, n.y, r * 1.7, 6, -rot * 1.5);
+        ctx.strokeStyle = hexA(color, .5); ctx.setLineDash([3 / cam.k, 5 / cam.k]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.globalAlpha = 1;
+    }
 
-    return { focusNode, toggleBranch, fit, select };
+    // joya: talla brillante vista desde arriba, con la foto engastada en la tabla
+    function drawGem(t) {
+      const R = GEM_R * (selected === graph.root || hover === graph.root ? 1.06 : 1), k = cam.k;
+      const light = t / 2600;
+      const pulse = REDUCED ? .5 : (Math.sin(t / 900) + 1) / 2;
+      const halo = ctx.createRadialGradient(0, 0, R * .6, 0, 0, R * (2.6 + pulse * .5));
+      halo.addColorStop(0, 'rgba(125,249,255,.35)'); halo.addColorStop(.5, 'rgba(182,156,255,.12)'); halo.addColorStop(1, 'rgba(125,249,255,0)');
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, R * 3.2, 0, 6.283); ctx.fill();
+
+      const P8 = (r, off) => Array.from({ length: 8 }, (_, j) => [Math.cos(j * Math.PI / 4 + off) * r, Math.sin(j * Math.PI / 4 + off) * r]);
+      const T = P8(R * .5, 0), S = P8(R * .74, Math.PI / 8), O = P8(R, 0), M = P8(R * .985, Math.PI / 8);
+      const facets = [];
+      for (let j = 0; j < 8; j++) {
+        const j1 = (j + 1) % 8, jm = (j + 7) % 8;
+        facets.push([T[j], T[j1], S[j]]);                // estrella
+        facets.push([T[j], S[jm], O[j], S[j]]);          // bisel
+        facets.push([S[j], O[j], M[j]]);                 // corona
+        facets.push([S[j], M[j], O[j1]]);
+      }
+      for (const f of facets) {
+        const cx = f.reduce((s, p) => s + p[0], 0) / f.length, cy = f.reduce((s, p) => s + p[1], 0) / f.length;
+        const a = Math.atan2(cy, cx);
+        const b = .25 + .75 * Math.pow(Math.max(0, Math.cos(a - light)), 3) + .25 * Math.pow(Math.max(0, Math.cos(a * 3 + light * 2)), 8);
+        const hue = 215 + 35 * Math.sin(a * 2 + light);
+        ctx.beginPath(); f.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath();
+        ctx.fillStyle = `hsl(${hue} ${45 + b * 25}% ${clamp(16 + b * 72, 0, 95)}%)`;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = .8 / k; ctx.stroke();
+      }
+      // tabla con la foto
+      ctx.save();
+      ctx.beginPath(); T.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath();
+      ctx.fillStyle = '#0b1530'; ctx.fill();
+      if (avatar.complete && avatar.naturalWidth) {
+        ctx.clip();
+        ctx.globalAlpha = avatarAlpha;
+        ctx.drawImage(avatar, -R * .5, -R * .5, R, R);
+        ctx.globalAlpha = 1;
+      }
+      const sheen = ctx.createLinearGradient(-R * .5, -R * .5, R * .5, R * .5);
+      const sx = (Math.sin(light * 1.3) + 1) / 2;
+      sheen.addColorStop(clamp(sx - .2), 'rgba(255,255,255,0)'); sheen.addColorStop(sx, 'rgba(255,255,255,.28)'); sheen.addColorStop(clamp(sx + .2), 'rgba(255,255,255,0)');
+      ctx.fillStyle = sheen; ctx.fill();
+      ctx.restore();
+      ctx.beginPath(); T.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath();
+      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.2 / k; ctx.stroke();
+      // destellos
+      if (!REDUCED) {
+        for (let i = 0; i < 3; i++) {
+          const ph = (t / 1700 + i / 3) % 1, a = i * 2.1 + Math.floor(t / 1700 + i / 3) * 1.3;
+          const x = Math.cos(a) * R * .8, y = Math.sin(a) * R * .8, s = Math.sin(ph * Math.PI) * 9 / Math.max(k, .6);
+          ctx.strokeStyle = `rgba(255,255,255,${Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.2 / k;
+          ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.stroke();
+        }
+      }
+    }
+
+    function drawLabels() {
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      for (const n of graph.nodes) {
+        if (n.pop < .5 || n.type === 'root') continue;
+        const isLeaf = n.type === 'leaf';
+        const near = hover && (hover === n || hover.parent === n || n.parent === hover || hoverCross.has(n.id));
+        const focus = n.branch === activeBranch || near || n === selected;
+        const show = n.type === 'hub' || focus || (n.type === 'sub' ? cam.k >= .4 : cam.k >= .62);
+        if (!show) continue;
+        const [sx, sy] = toScreen(n.x, n.y);
+        const rr = n.r * cam.k + (n.type === 'hub' ? 16 : 9);
+        const c = Math.cos(n.angle), s = Math.sin(n.angle);
+        let x = sx, y = sy;
+        if (n.type === 'hub' && n.branch === activeBranch) { y = sy + rr + 8; ctx.textAlign = 'center'; }
+        else if (Math.abs(c) > .35) { x = sx + Math.sign(c) * rr; ctx.textAlign = c > 0 ? 'left' : 'right'; }
+        else { y = sy + Math.sign(s || 1) * (rr + 4); ctx.textAlign = 'center'; }
+        const m = stacked();
+        ctx.font = n.type === 'hub' ? `600 ${m ? 11 : 13}px Unbounded, sans-serif` : n.type === 'sub' ? `600 ${m ? 9.5 : 11}px Unbounded, sans-serif` : `500 ${m ? 11 : 12.5}px Manrope, sans-serif`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = n.type === 'leaf' ? '0px' : '1.5px';
+        const text = n.type === 'leaf' ? n.label : n.label.toUpperCase();
+        ctx.globalAlpha = n.pop * (hover && !near ? .35 : 1);
+        ctx.strokeStyle = 'rgba(6,6,11,.85)'; ctx.lineWidth = 4;
+        ctx.strokeText(text, x, y);
+        ctx.fillStyle = n.type === 'leaf' ? '#e6e3f0' : BRANCHES[n.branch].color;
+        ctx.fillText(text, x, y);
+      }
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      ctx.globalAlpha = 1;
+    }
+
+    // ---------- bucle ----------
+    let hoverCross = new Set(), nextAmbient = 0;
+    function frame(t) {
+      const dt = Math.min(.05, (t - lastT) / 1000); lastT = t;
+      const { target, reveal } = scrollState();
+      const ease = REDUCED ? 1 : 1 - Math.pow(.0015, dt);
+      cam.x = lerp(cam.x, target.x, ease); cam.y = lerp(cam.y, target.y, ease); cam.k = lerp(cam.k, target.k, ease);
+      avatarAlpha = REDUCED ? 1 : Math.min(1, avatarAlpha + dt * .8);
+
+      // crecimiento de rayos según el scroll
+      graph.hubs.forEach((h, i) => {
+        const r = reveal[i];
+        (function walk(n) {
+          const e = incoming.get(n.id);
+          const want = r > e.threshold + .02 ? 1 : 0;
+          if (want && !e.target) { regen(e); e.strike = 1; if (n.type === 'hub') flash = .5; }
+          e.target = want;
+          n.children.forEach(walk);
+        })(h);
+      });
+      for (const e of tree) {
+        if (REDUCED) e.grow = e.target;
+        else e.grow = e.target ? Math.min(1, e.grow + dt / (e.b.type === 'hub' ? .38 : .26)) : Math.max(0, e.grow - dt / .2);
+        const nt = e.grow > .98 ? 1 : 0;
+        e.b.pop = REDUCED ? nt : nt ? Math.min(1, e.b.pop + dt / .35) : Math.max(0, e.b.pop - dt / .2);
+      }
+      for (const e of crossE) {
+        const ok = e.a.pop > .9 && e.b.pop > .9;
+        const want = ok && (crossReveal > 0 || (hover && (hover === e.a || hover === e.b))) ? 1 : 0;
+        if (want && !e.target) { regen(e); e.strike = .35; }
+        e.target = want;
+        e.grow = REDUCED ? want : want ? Math.min(1, e.grow + dt / .35) : Math.max(0, e.grow - dt / .3);
+      }
+
+      // impulsos: ambientales + programados
+      if (!REDUCED && t > nextAmbient && !document.hidden) {
+        const live = tree.filter(e => e.grow > .99);
+        if (live.length) { const e = live[Math.floor(Math.random() * live.length)]; strike(e); e.depth = 0; }
+        nextAmbient = t + 700 + Math.random() * 1400;
+      }
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (queue[i].t <= t) {
+          const { e } = queue[i]; queue.splice(i, 1);
+          regen(e); e.strike = 1;
+          if (e.kind === 'tree') cascade(e, e.depth || 0);
+        }
+      }
+      for (const e of edges) {
+        e.strike *= Math.pow(.02, dt);
+        if (e.strike > .15 && t > e.regenAt) { regen(e); e.regenAt = t + 45 + Math.random() * 40; } // parpadeo
+      }
+      flash *= Math.pow(.01, dt);
+
+      // render
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      drawStars(t);
+      worldTransform();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const e of crossE) drawBolt(e, BRANCHES[e.b.branch].color, hover && (hover === e.a || hover === e.b) ? 2.2 : crossReveal * .3);
+      for (const e of tree) {
+        const dim = hover && !(e.a === hover || e.b === hover) ? .45 : 1;
+        drawBolt(e, BRANCHES[e.b.branch].color, dim);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      for (const n of graph.nodes) if (n.type !== 'root') drawNode(n, t);
+      drawGem(t);
+      drawLabels();
+      if (flash > .01) {
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.fillStyle = `rgba(200,240,255,${flash * .12})`; ctx.fillRect(0, 0, W, H);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // ---------- interacción ----------
+    function pick(sx, sy) {
+      const [wx, wy] = toWorld(sx, sy);
+      let best = null, bd = Infinity;
+      for (const n of graph.nodes) {
+        if (n.pop < .6) continue;
+        const d = Math.hypot(n.x - wx, n.y - wy) * cam.k;
+        const lim = n.type === 'root' ? GEM_R * cam.k + 6 : Math.max(16, n.r * cam.k + 10);
+        if (d < lim && d < bd) { best = n; bd = d; }
+      }
+      return best;
+    }
+    function setHover(n) {
+      if (n === hover) return;
+      hover = n;
+      hoverCross = new Set();
+      canvas.style.cursor = n ? 'pointer' : '';
+      if (!n) return;
+      for (const e of edges) {
+        if (e.a === n || e.b === n) {
+          if (e.kind === 'cross') hoverCross.add(e.a === n ? e.b.id : e.a.id);
+          if (e.grow > .99) strike(e, Math.random() * 120);
+        }
+      }
+    }
+    canvas.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') setHover(pick(e.clientX, e.clientY)); });
+    canvas.addEventListener('pointerleave', () => setHover(null));
+    canvas.addEventListener('click', e => {
+      const n = pick(e.clientX, e.clientY);
+      if (n) { select(n); if (e.pointerType !== 'mouse') setHover(n); }
+      else { selected = null; setHover(null); closePanel(); }
+    });
+
+    function select(n) {
+      selected = n;
+      for (const e of edges) if ((e.a === n || e.b === n) && e.grow > .99) strike(e, Math.random() * 100);
+      openPanel(n);
+    }
+    function focusNode(n) {
+      if (n.type === 'root') { story.goTo(0); select(n); return; }
+      if (n.pop < .9) {
+        let h = n; while (h.parent && h.parent.type !== 'root') h = h.parent;
+        story.goTo(graph.hubs.indexOf(h) + 1);
+        setTimeout(() => select(n), 900);
+      } else select(n);
+    }
+
+    addEventListener('resize', resize);
+    resize();
+    requestAnimationFrame(frame);
+    return { focusNode, select, clearSelection() { selected = null; } };
   }
 
+  // ---------- capítulos (HTML sobre el canvas) ----------
+  const story = {
+    sections: [], tops: [],
+    build(graph, P, G) {
+      const hubText = {
+        about: P.bio,
+        projects: `${graph.repos.length} proyectos públicos, leídos en vivo desde GitHub. Cada uno se conecta con su lenguaje y con las habilidades que usa.`,
+        langs: 'Los lenguajes salen de mis repositorios: cuantos más proyectos, más grande el cristal.',
+        skills: 'Lo que sé hacer, agrupado por área. Cada habilidad lanza un rayo hacia los proyectos donde la apliqué.',
+        career: 'Experiencia y formación.',
+        social: 'Dónde encontrarme.',
+      };
+      const n = graph.hubs.length;
+      const chip = (node, color) => `<a href="#" class="chip" style="--c:${color}" data-node="${esc(node.id)}">${esc(node.label)}</a>`;
+      const leaves = h => {
+        const out = [];
+        (function walk(x) { x.children.forEach(c => { if (c.type === 'leaf') out.push(c); walk(c); }); })(h);
+        return out;
+      };
+      const html = [`
+        <section class="chapter intro" data-i="0"><div class="card">
+          <div class="kicker"><i style="background:#7df9ff;color:#7df9ff"></i>${esc(P.handle)}</div>
+          <h1>${esc(P.name)}</h1>
+          <p class="headline">${esc(P.headline)}</p>
+          <p>${esc(P.location || '')}</p>
+          <div class="scroll-cue"><b></b>Desliza para encender la red</div>
+        </div></section>`];
+      graph.hubs.forEach((h, i) => {
+        const c = BRANCHES[h.branch].color;
+        html.push(`
+        <section class="chapter" data-i="${i + 1}"><div class="card">
+          <div class="kicker" style="color:${c}"><i style="background:${c};color:${c}"></i>${String(i + 1).padStart(2, '0')} / ${String(n).padStart(2, '0')}</div>
+          <h2>${esc(h.label)}</h2>
+          <p>${esc(hubText[h.branch] || '')}</p>
+          ${h.children.some(x => x.type === 'sub')
+            ? h.children.map(s => `<div class="kicker" style="margin-top:14px">${esc(s.label)}</div><div class="chips">${s.children.map(x => chip(x, c)).join('')}</div>`).join('')
+            : `<div class="chips">${leaves(h).map(x => chip(x, c)).join('')}</div>`}
+        </div></section>`);
+      });
+      const links = (P.links || []).filter(l => l.url);
+      html.push(`
+        <section class="chapter final" data-i="${n + 1}"><div class="card">
+          <div class="kicker"><i style="background:#ffd27a;color:#ffd27a"></i>La red completa</div>
+          <h2>Todo conectado</h2>
+          <p>Pasa el cursor o toca cualquier cristal para ver sus conexiones y sus detalles.</p>
+          <div class="actions">
+            ${links.slice(0, 3).map((l, i) => `<a class="btn${i ? ' ghost' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}
+            <button class="btn ghost" type="button" data-cv>Ver CV</button>
+          </div>
+        </div></section>`);
+      $('#story').innerHTML = html.join('');
+      this.sections = [...document.querySelectorAll('.chapter')];
+
+      $('#dots').innerHTML = this.sections.map((s, i) => {
+        const c = i === 0 ? '#7df9ff' : i > n ? '#ffd27a' : BRANCHES[graph.hubs[i - 1].branch].color;
+        const label = i === 0 ? 'Inicio' : i > n ? 'Red completa' : graph.hubs[i - 1].label;
+        return `<a href="#" style="--c:${c}" data-go="${i}" title="${esc(label)}"><span>${esc(label)}</span></a>`;
+      }).join('');
+      $('#dots').addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); this.goTo(+a.dataset.go); } });
+      $('#story').addEventListener('click', e => {
+        const a = e.target.closest('[data-node]');
+        if (a) { e.preventDefault(); scene.focusNode(GRAPH.byId.get(a.dataset.node)); }
+        if (e.target.closest('[data-cv]')) setView('cv');
+      });
+      this.measure();
+    },
+    measure() {
+      this.tops = this.sections.map(s => ({ top: s.offsetTop, h: s.offsetHeight }));
+    },
+    progress() {
+      const c = scrollY + innerHeight * .5;
+      let i = 0;
+      while (i < this.tops.length - 1 && this.tops[i + 1].top <= c) i++;
+      const s = this.tops[i] || { top: 0, h: 1 };
+      return { u: i + clamp((c - s.top) / s.h), i };
+    },
+    goTo(i) {
+      const s = this.tops[i];
+      if (s) scrollTo({ top: s.top + (i === 0 ? 0 : s.h * .25), behavior: REDUCED ? 'auto' : 'smooth' });
+    },
+    tick() {
+      const { i } = this.progress();
+      this.sections.forEach((s, j) => s.classList.toggle('in', j === i));
+      document.querySelectorAll('#dots a').forEach((a, j) => a.classList.toggle('on', j === i));
+    },
+  };
+
   // ---------- panel de detalle ----------
-  let api, GRAPH, PROFILE, GH;
+  let scene, GRAPH, PROFILE, GH;
   const panel = $('#panel'), body = panel.querySelector('.panel-body');
 
   function openPanel(d) {
@@ -390,21 +719,21 @@
     panel.setAttribute('aria-hidden', 'false');
     body.querySelectorAll('[data-node]').forEach(el => el.addEventListener('click', e => {
       e.preventDefault();
-      api.focusNode(GRAPH.byId.get(el.dataset.node));
+      scene.focusNode(GRAPH.byId.get(el.dataset.node));
     }));
-    body.querySelector('[data-toggle]')?.addEventListener('click', () => api.toggleBranch(d));
     panel.scrollTop = 0;
   }
-  function closePanel() { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); }
+  function closePanel() { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); scene?.clearSelection(); }
   panel.querySelector('.close').addEventListener('click', closePanel);
   addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 
+  const colorOf = d => d.type === 'root' ? '#7df9ff' : BRANCHES[d.branch].color;
   const kicker = d => {
-    const c = d.type === 'root' ? '#f472b6' : BRANCHES[d.branch].color;
+    const c = colorOf(d);
     const txt = d.type === 'root' ? 'Perfil' : d.type === 'hub' ? 'Rama' : BRANCHES[d.branch].label;
-    return `<div class="kicker" style="color:${c}">${esc(txt)}</div>`;
+    return `<div class="kicker" style="color:${c}"><i style="background:${c};color:${c}"></i>${esc(txt)}</div>`;
   };
-  const nodeChips = list => `<div class="chips">${list.map(n => `<a href="#" class="chip" data-node="${esc(n.id)}">${esc(n.label)}</a>`).join('')}</div>`;
+  const nodeChips = (list, c) => `<div class="chips">${list.map(n => `<a href="#" class="chip" style="--c:${c || colorOf(n)}" data-node="${esc(n.id)}">${esc(n.label)}</a>`).join('')}</div>`;
   const linkBtn = (l, ghost) => `<a class="btn${ghost ? ' ghost' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`;
 
   function panelHTML(d) {
@@ -416,7 +745,7 @@
           <img class="avatar" src="${esc(P.avatar || U.avatar_url)}" alt="">
           <h2>${esc(P.name)}</h2>
           <div class="meta"><span>${esc(P.handle)}</span><span>${esc(P.location || U.location || '')}</span></div>
-          <p style="color:var(--accent)">${esc(P.headline)}</p>
+          <p class="headline">${esc(P.headline)}</p>
           <p>${esc(P.bio || U.bio)}</p>
           <div class="stats">
             <div><b>${GRAPH.repos.length}</b><span>proyectos</span></div>
@@ -426,13 +755,10 @@
           <div class="actions">${(P.links || []).filter(l => l.url).map((l, i) => linkBtn(l, i > 0)).join('')}</div>`;
       }
       case 'hub':
-      case 'group': {
-        const kids = d.children;
+      case 'group':
         return `${kicker(d)}<h2>${esc(d.label)}</h2>
-          <p>${kids.length} ${kids.length === 1 ? 'conexión' : 'conexiones'} en esta rama.</p>
-          ${nodeChips(kids)}
-          <div class="actions"><button class="btn ghost" data-toggle>${d.collapsed ? 'Expandir rama' : 'Contraer rama'}</button></div>`;
-      }
+          <p>${d.children.length} ${d.children.length === 1 ? 'conexión' : 'conexiones'} en esta rama.</p>
+          ${nodeChips(d.children)}`;
       case 'repo': {
         const r = x.repo;
         const skills = GRAPH.nodes.filter(n => n.data.kind === 'skill' && n.data.repos.includes(r.name));
@@ -440,7 +766,7 @@
           <div class="meta">${r.language ? `<span>${esc(r.language)}</span>` : ''}<span class="star">★ ${r.stars}</span><span>actualizado ${esc(ago(r.pushed_at))}</span></div>
           <p>${esc(r.description || 'Sin descripción todavía.')}</p>
           ${r.topics.length ? `<div class="chips">${r.topics.map(t => `<span class="chip static">#${esc(t)}</span>`).join('')}</div>` : ''}
-          ${skills.length ? `<div class="kicker" style="color:var(--muted);margin-top:16px">Habilidades conectadas</div>${nodeChips(skills)}` : ''}
+          ${skills.length ? `<div class="kicker" style="margin-top:18px">Habilidades conectadas</div>${nodeChips(skills)}` : ''}
           <div class="actions">
             ${r.homepage ? linkBtn({ label: 'Ver demo', url: r.homepage }) : ''}
             ${linkBtn({ label: 'Código', url: r.url }, !!r.homepage)}
@@ -477,13 +803,13 @@
   function renderCV(P, G, graph) {
     const U = G.user;
     const projectCards = graph.repos.map(r => `
-      <article class="card">
+      <article class="pcard">
         <h3><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(prettyName(r.name))}</a></h3>
         <p>${esc(r.description || 'Sin descripción todavía.')}</p>
         <div class="meta">${r.language ? `<span>${esc(r.language)}</span>` : ''}<span class="star">★ ${r.stars}</span>${r.homepage ? `<a href="${esc(r.homepage)}" target="_blank" rel="noopener">demo ↗</a>` : ''}</div>
       </article>`).join('');
     const timeline = list => `<div class="timeline">${list.map(j => `
-      <div class="item"><h3>${esc(j.role || j.title)}</h3>
+      <div><h3>${esc(j.role || j.title)}</h3>
       <div class="meta"><span>${esc(j.org || j.school || '')}</span><span>${esc(j.period || '')}</span></div>
       ${j.description ? `<p>${esc(j.description)}</p>` : ''}</div>`).join('')}</div>`;
     const links = (P.links || []).filter(l => l.url);
@@ -499,7 +825,7 @@
       </div>
       <div class="cv-actions">
         ${links.map((l, i) => linkBtn(l, i > 0)).join('')}
-        <button class="btn ghost" onclick="print()">Imprimir / PDF</button>
+        <button class="btn ghost" type="button" onclick="print()">Imprimir / PDF</button>
       </div>
       <h2>Perfil</h2><p class="bio">${esc(P.bio)}</p>
       ${P.experience?.length ? `<h2>Experiencia</h2>${timeline(P.experience)}` : ''}
@@ -511,69 +837,46 @@
     </div>`;
   }
 
-  // ---------- fondo de estrellas ----------
-  function stars() {
-    const c = $('#stars'), ctx = c.getContext('2d');
-    let pts = [];
-    const resize = () => {
-      c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
-      pts = Array.from({ length: Math.round(innerWidth * innerHeight / 9000) }, () => ({
-        x: Math.random() * c.width, y: Math.random() * c.height, r: Math.random() * 1.2 * devicePixelRatio, p: Math.random() * 6.28,
-      }));
-    };
-    const draw = t => {
-      ctx.clearRect(0, 0, c.width, c.height);
-      for (const s of pts) {
-        ctx.globalAlpha = .25 + .35 * (REDUCED ? .5 : (Math.sin(t / 1400 + s.p) + 1) / 2);
-        ctx.fillStyle = '#9fb2ff';
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.28); ctx.fill();
-      }
-      if (!REDUCED) requestAnimationFrame(draw);
-    };
-    resize(); addEventListener('resize', resize); requestAnimationFrame(draw);
-  }
-
   // ---------- vistas ----------
+  let netScroll = 0;
+  function setView(v) {
+    const cv = v === 'cv';
+    if (cv === document.body.classList.contains('cv-mode')) return;
+    if (cv) netScroll = scrollY;
+    document.querySelectorAll('.views button').forEach(x => { const on = x.dataset.view === v; x.classList.toggle('active', on); x.setAttribute('aria-pressed', on); });
+    document.body.classList.toggle('cv-mode', cv);
+    $('#cv').hidden = !cv;
+    closePanel();
+    history.replaceState(null, '', cv ? '#cv' : location.pathname);
+    if (cv) scrollTo(0, 0);
+    else { story.measure(); scrollTo(0, netScroll); }
+  }
   function setupViews() {
-    document.querySelectorAll('.views button').forEach(b => b.addEventListener('click', () => {
-      const v = b.dataset.view;
-      document.querySelectorAll('.views button').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-pressed', x === b); });
-      $('#net').hidden = v !== 'net';
-      $('#cv').hidden = v !== 'cv';
-      if (v === 'cv') closePanel();
-      history.replaceState(null, '', v === 'cv' ? '#cv' : location.pathname);
-    }));
-    if (location.hash === '#cv') document.querySelector('[data-view=cv]').click();
+    document.querySelectorAll('.views button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+    if (location.hash === '#cv') setView('cv');
     $('#brand').addEventListener('click', e => {
       e.preventDefault();
-      document.querySelector('[data-view=net]').click();
-      api.fit(); api.select(GRAPH.root);
-    });
-  }
-
-  function legend() {
-    $('#legend').innerHTML = GRAPH.root.children.map(h =>
-      `<button type="button" data-node="${esc(h.id)}"><i style="background:${BRANCHES[h.branch].color}"></i>${esc(h.label)}</button>`).join('');
-    $('#legend').addEventListener('click', e => {
-      const b = e.target.closest('[data-node]');
-      if (b) api.focusNode(GRAPH.byId.get(b.dataset.node));
+      setView('net');
+      story.goTo(0);
     });
   }
 
   // ---------- arranque ----------
   async function main() {
-    stars();
     PROFILE = await getJSON('data/profile.json');
     GH = await loadGitHub(PROFILE.github);
     $('#brand-name').textContent = PROFILE.name;
     $('#brand-handle').textContent = PROFILE.handle;
     GRAPH = buildGraph(PROFILE, GH);
-    api = renderGraph(GRAPH, PROFILE, GH);
+    layout(GRAPH);
+    story.build(GRAPH, PROFILE, GH);
+    scene = createScene(GRAPH, PROFILE, GH);
     renderCV(PROFILE, GH, GRAPH);
-    legend();
     setupViews();
-    const label = { live: 'GitHub en vivo', cache: 'GitHub', snapshot: 'copia local de GitHub' }[GH.source];
-    $('#source').textContent = `datos: ${label} · ${ago(new Date(GH.t).toISOString())}`;
+    const onScroll = () => story.tick();
+    addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    document.fonts?.ready.then(() => story.measure());
     $('#loader').classList.add('gone');
   }
 
