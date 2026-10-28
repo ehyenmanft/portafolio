@@ -1,8 +1,8 @@
 # Portafolio · James Aranda (@ehyenma.nft)
 
-Portafolio y CV interactivo: una noche de tormenta frente a La Guaira, con el Ávila detrás y las luces de la costa en el mar. Al ir deslizando, de mi foto nacen **rayos** hacia cada rama (Sobre mí, Proyectos, Lenguajes, Habilidades, Experiencia y Contacto); cada descarga ilumina las nubes y se refleja en el agua. Al final se ve toda la red, con las conexiones entre proyectos, lenguajes y habilidades.
+Portafolio y CV interactivo con estética de terminal: sobre una lluvia digital de ceros y unos, de mi foto nacen **rayos escritos en binario** hacia cada rama (Sobre mí, Proyectos, Lenguajes, Habilidades, Experiencia y Contacto). Los títulos son comandos (`❯ ./proyectos▋`) que se descifran al aparecer, y cada bloque entra desenfocado desde un lado al hacer scroll. Al final se ve toda la red, con las conexiones entre proyectos, lenguajes y habilidades.
 
-Sitio estático (HTML + CSS + JS con Canvas 2D), sin dependencias ni compilación. Responsive: en móvil y tableta vertical la escena ocupa la parte de arriba y el texto sube por debajo. Respeta "reducir movimiento".
+Sitio estático (HTML + CSS + JS con Canvas 2D y GSAP desde CDN), sin compilación. Responsive: en móvil y tableta vertical la escena ocupa la parte de arriba y el texto sube por debajo. Respeta "reducir movimiento".
 
 ## De dónde salen los datos
 

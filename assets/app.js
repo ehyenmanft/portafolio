@@ -16,7 +16,7 @@
   const C = {};
   function readTokens() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['sky', 'sky-low', 'cloud', 'ridge', 'sea', 'ink', 'mist', 'bolt', 'glow', 'sodium']) {
+    for (const k of ['sky', 'sky-low', 'rain', 'ridge', 'ink', 'mist', 'bolt', 'glow', 'sodium']) {
       C[k.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = cs.getPropertyValue(`--color-${k}`).trim();
     }
     C.title = {};
@@ -231,21 +231,6 @@
     return forks;
   }
 
-  // ruido de valor suave para nubes y montaña
-  function noise2(seed = Math.random() * 1e4) {
-    const R = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453; return s - Math.floor(s); };
-    return (x, y) => {
-      const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-      const u = smooth(xf), v = smooth(yf);
-      return lerp(lerp(R(xi, yi), R(xi + 1, yi), u), lerp(R(xi, yi + 1), R(xi + 1, yi + 1), u), v);
-    };
-  }
-  function fbm(n, x, y, oct = 5) {
-    let s = 0, a = .5, f = 1;
-    for (let i = 0; i < oct; i++) { s += a * n(x * f, y * f); a *= .5; f *= 2.03; }
-    return s;
-  }
-
   // ---------- escena ----------
   function createScene(graph, P, G) {
     const canvas = $('#sky'), ctx = canvas.getContext('2d');
@@ -253,54 +238,50 @@
     const cam = { x: 0, y: 0, k: 1 };
     // mismo criterio que el CSS: móvil o tableta en vertical → red arriba, texto debajo
     const stacked = () => W <= 760 || (W <= 1100 && H > W);
-    const horizonY = () => stacked() ? H * .54 : H * .84;
     let hover = null, selected = null, flash = 0, flashX = 0, lastT = performance.now(), crossReveal = 0;
     let activeBranch = null, hoverNear = new Set();
     const photo = new Image();
     photo.src = P.avatar || G.user.avatar_url;
 
-    // ---------- paisaje: nubes, el Ávila, las luces de la costa y la lluvia ----------
-    let clouds = null, cloudsLit = null, ridge = [], lights = [], rain = [];
-    const cloudNoise = noise2(), ridgeNoise = noise2();
+    // ---------- fondo: lluvia digital de ceros y unos, como en una terminal de Matrix ----------
+    let rainCv = null, rctx = null, cols = [], glyph = 15;
+    const bit = () => (Math.random() < .5 ? '0' : '1');
     function buildLandscape() {
-      // con la pestaña oculta la ventana puede medir 0: se reconstruye en el siguiente resize
-      if (W < 1 || H < 1) { clouds = cloudsLit = null; ridge = []; lights = []; rain = []; return; }
-      const hy = horizonY(), S = 4;
-      const cw = Math.ceil(W * 1.3 / S), ch = Math.ceil(hy / S);
-      const base = document.createElement('canvas'), lit = document.createElement('canvas');
-      base.width = lit.width = cw; base.height = lit.height = ch;
-      const bi = base.getContext('2d').createImageData(cw, ch), li = lit.getContext('2d').createImageData(cw, ch);
-      const cc = parseInt(C.cloud.slice(1), 16), gc = parseInt(C.glow.slice(1), 16);
-      for (let y = 0; y < ch; y++) {
-        for (let x = 0; x < cw; x++) {
-          const nx = x / cw * 6, ny = y / ch * 3.2;
-          const warp = fbm(cloudNoise, nx * .5 + 7, ny * .5, 3);
-          const d = fbm(cloudNoise, nx + warp * 1.6, ny * 1.4 + warp, 5);
-          const dens = smooth(clamp((d - .38) / .32)) * (1 - .35 * (y / ch));
-          const i = (y * cw + x) * 4;
-          bi.data[i] = cc >> 16; bi.data[i + 1] = (cc >> 8) & 255; bi.data[i + 2] = cc & 255; bi.data[i + 3] = dens * 170;
-          const edge = clamp(dens * 1.4 - fbm(cloudNoise, nx * 2, ny * 2, 2) * .5);
-          li.data[i] = gc >> 16; li.data[i + 1] = (gc >> 8) & 255; li.data[i + 2] = gc & 255; li.data[i + 3] = edge * 235;
+      if (W < 1 || H < 1) { rainCv = null; return; } // con la pestaña oculta la ventana puede medir 0
+      rainCv = document.createElement('canvas');
+      rainCv.width = W * DPR; rainCv.height = H * DPR;
+      rctx = rainCv.getContext('2d');
+      rctx.scale(DPR, DPR);
+      glyph = stacked() ? 13 : 15;
+      rctx.font = `500 ${glyph}px ${C.display}`;
+      rctx.textBaseline = 'top';
+      cols = Array.from({ length: Math.ceil(W / glyph) }, (_, i) => ({
+        x: i * glyph, y: -Math.random() * H, v: 35 + Math.random() * 110, row: -1, on: Math.random() < .6,
+      })).filter(c => c.on);
+      if (REDUCED) { // sin animación: un campo quieto de dígitos tenues
+        rctx.fillStyle = rgba(C.rain, .5);
+        for (const c of cols) for (let y = 0; y < H; y += glyph * 1.2) if (Math.random() < .35) rctx.fillText(bit(), c.x, y);
+      }
+    }
+    function stepRain(dt) {
+      if (!rainCv || REDUCED) return;
+      rctx.globalCompositeOperation = 'destination-out';
+      rctx.fillStyle = `rgba(0,0,0,${1 - Math.pow(.25, dt)})`;
+      rctx.fillRect(0, 0, W, H);
+      rctx.globalCompositeOperation = 'source-over';
+      for (const c of cols) {
+        c.y += c.v * dt * (1 + flash * 1.5);
+        const row = Math.floor(c.y / glyph);
+        if (row !== c.row) {
+          c.row = row;
+          const y = row * glyph;
+          rctx.fillStyle = rgba(C.rain, .9);
+          rctx.fillText(bit(), c.x, y - glyph);
+          rctx.fillStyle = rgba(C.bolt, .85); // la cabeza de cada columna brilla
+          rctx.fillText(bit(), c.x, y);
         }
+        if (c.y > H + glyph * 4) { c.y = -Math.random() * H * .5; c.row = -1; c.v = 35 + Math.random() * 110; }
       }
-      base.getContext('2d').putImageData(bi, 0, 0); lit.getContext('2d').putImageData(li, 0, 0);
-      clouds = base; cloudsLit = lit;
-
-      // El Ávila: una cresta larga con picos, detrás de la costa
-      const mh = stacked() ? H * .1 : H * .17;
-      ridge = [];
-      for (let x = -10; x <= W + 10; x += 6) {
-        const u = x / W;
-        const h = mh * (.45 + .55 * Math.sin(Math.PI * clamp(u * 1.1 - .05)) ** .7) * (.75 + .35 * fbm(ridgeNoise, u * 9, .5, 4));
-        ridge.push([x, hy - h]);
-      }
-      const ridgeAt = x => { const i = clamp(Math.round((x + 10) / 6), 0, ridge.length - 1); return ridge[i][1]; };
-      lights = Array.from({ length: Math.round(W / 5) }, () => {
-        const x = Math.random() * W, top = ridgeAt(x);
-        const y = hy - 2 - Math.pow(Math.random(), 2.6) * (hy - top) * .55;
-        return { x, y, r: .6 + Math.random() * 1.1, a: .45 + Math.random() * .55, warm: Math.random() > .18, p: Math.random() * 6.28 };
-      });
-      rain = Array.from({ length: REDUCED ? 0 : Math.round(W * H / 7000) }, () => ({ x: Math.random() * W, y: Math.random() * H, l: 8 + Math.random() * 14, v: 700 + Math.random() * 500 }));
     }
 
     function resize() {
@@ -353,12 +334,12 @@
     function viewArea() {
       if (stacked()) return { x: 0, y: 64, w: W, h: H * .5 - 44 };
       const left = containerLeft() + Math.min(32 * 16, W * .4) + 24;
-      return { x: left, y: 70, w: W - left - containerLeft(), h: horizonY() - H * .17 - 70 };
+      return { x: left, y: 76, w: W - left - containerLeft(), h: H - 76 - 40 };
     }
     // el margen va en píxeles de pantalla porque las etiquetas no escalan con el zoom
     function fitCam(points) {
       const A = viewArea();
-      const padX = stacked() ? 96 : 150, padY = 24;
+      const padX = stacked() ? 96 : Math.min(150, A.w * .2), padY = 24;
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
       const k = clamp(Math.min((A.w - padX * 2) / (x1 - x0 || 1), (A.h - padY * 2) / (y1 - y0 || 1)), .18, 1.8);
@@ -396,86 +377,30 @@
       return { target, reveal };
     }
 
-    // ---------- dibujo del paisaje ----------
+    // ---------- dibujo del fondo ----------
     function drawLandscape(t, dt) {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      const hy = horizonY();
-      const sky = ctx.createLinearGradient(0, 0, 0, hy);
-      sky.addColorStop(0, C.sky); sky.addColorStop(1, C.skyLow);
-      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, hy);
-
-      // nubes: deriva lenta con el viento y un poco de paralaje con la cámara
-      if (clouds) {
-        const drift = REDUCED ? 0 : (t / 1000 * 4) % (W * .3);
-        const ox = -drift - cam.x * .02 * cam.k, oy = -cam.y * .015 * cam.k;
-        ctx.imageSmoothingEnabled = true;
-        ctx.globalAlpha = .9;
-        ctx.drawImage(clouds, ox, oy, W * 1.3, hy);
-        if (flash > .02) {
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.globalAlpha = clamp(flash * .75);
-          ctx.drawImage(cloudsLit, ox, oy, W * 1.3, hy);
-          ctx.globalCompositeOperation = 'source-over';
-        }
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, C.sky); bg.addColorStop(1, C.skyLow);
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      stepRain(dt);
+      if (rainCv) {
+        ctx.globalAlpha = clamp(.3 + flash * .5);
+        ctx.drawImage(rainCv, 0, 0, W, H);
         ctx.globalAlpha = 1;
       }
+      // bajo la columna de texto la lluvia se apaga, para que se lea
+      if (!stacked()) {
+        const edge = viewArea().x;
+        const sc = ctx.createLinearGradient(0, 0, edge, 0);
+        sc.addColorStop(0, rgba(C.sky, .82)); sc.addColorStop(.75, rgba(C.sky, .55)); sc.addColorStop(1, rgba(C.sky, 0));
+        ctx.fillStyle = sc; ctx.fillRect(0, 0, edge, H);
+      }
+      // cada descarga ilumina la pantalla como un destello de fósforo
       if (flash > .01) {
-        const g = ctx.createRadialGradient(flashX, hy * .35, 0, flashX, hy * .35, Math.max(W, H) * .7);
-        g.addColorStop(0, rgba(C.glow, flash * .2)); g.addColorStop(1, rgba(C.glow, 0));
-        ctx.fillStyle = g; ctx.fillRect(0, 0, W, hy);
-      }
-
-      // el Ávila, recortado contra el cielo; el relámpago le dibuja el perfil
-      ctx.beginPath(); ctx.moveTo(-10, hy);
-      for (const [x, y] of ridge) ctx.lineTo(x, y);
-      ctx.lineTo(W + 10, hy); ctx.closePath();
-      ctx.fillStyle = C.ridge; ctx.fill();
-      if (flash > .05) {
-        ctx.beginPath(); ridge.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y));
-        ctx.strokeStyle = rgba(C.glow, flash * .35); ctx.lineWidth = 1; ctx.stroke();
-      }
-
-      // luces de la costa
-      for (const l of lights) {
-        const tw = REDUCED ? 1 : .85 + .15 * Math.sin(t / 700 + l.p);
-        ctx.fillStyle = rgba(l.warm ? C.sodium : C.bolt, l.a * tw);
-        ctx.fillRect(l.x, l.y, l.r, l.r);
-      }
-
-      // el mar, con el reflejo de las luces y del relámpago
-      const sea = ctx.createLinearGradient(0, hy, 0, H);
-      sea.addColorStop(0, C.ridge); sea.addColorStop(1, C.sea);
-      ctx.fillStyle = sea; ctx.fillRect(0, hy, W, H - hy);
-      for (const l of lights) {
-        if (l.y < hy - 8 || l.r < 1.3 || l.a < .7) continue;
-        const len = 4 + l.r * 10;
-        ctx.fillStyle = rgba(l.warm ? C.sodium : C.bolt, l.a * .16);
-        for (let k = 0; k < len; k += 2.5) {
-          if (Math.sin(l.p * 13 + k * 1.7) < -.3) continue;
-          const wob = REDUCED ? 0 : Math.sin(t / 300 + l.p + k * .6) * (1 + k * .12);
-          ctx.fillRect(l.x + wob - .5, hy + 2 + k, l.r * (1 + k / len), 1);
-        }
-      }
-      if (flash > .01) {
-        for (let i = 0; i < 16; i++) {
-          const y = hy + 3 + i * i * 1.5;
-          if (y > H) break;
-          const w = (80 - i * 4) * (.6 + Math.random() * .8);
-          ctx.fillStyle = rgba(C.bolt, flash * .3 * (1 - i / 16));
-          ctx.fillRect(flashX - w / 2 + (Math.random() - .5) * 12, y, w, 1.2);
-        }
-      }
-
-      // lluvia fina, inclinada por el viento
-      if (rain.length) {
-        ctx.strokeStyle = rgba(C.mist, .13 + flash * .25); ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (const d of rain) {
-          d.y += d.v * dt; d.x -= d.v * dt * .12;
-          if (d.y > H) { d.y = -d.l; d.x = Math.random() * W * 1.1; }
-          ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.l * .12, d.y - d.l);
-        }
-        ctx.stroke();
+        const g = ctx.createRadialGradient(flashX, H * .35, 0, flashX, H * .35, Math.max(W, H) * .7);
+        g.addColorStop(0, rgba(C.glow, flash * .14)); g.addColorStop(1, rgba(C.glow, 0));
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       }
     }
 
@@ -495,30 +420,53 @@
       }
     }
 
-    // un canal ionizado tenue que se enciende por completo con cada descarga
+    // el rayo está escrito en binario: los dígitos siguen el canal quebrado y parpadean
     function drawBolt(e, alphaMul) {
       if (e.grow <= .001) return;
-      const pts = e.path, upto = e.grow * (pts.length - 1), k = cam.k;
-      const base = e.kind === 'cross' ? .14 : (activeBranch && e.b.branch !== activeBranch ? .2 : .36);
+      const pts = e.path, upto = e.grow * (pts.length - 1), k = cam.k, cross = e.kind === 'cross';
+      const base = cross ? .14 : (activeBranch && e.b.branch !== activeBranch ? .24 : .48);
       const I = base * alphaMul + e.strike * (.75 + .25 * Math.random());
-      const passes = e.kind === 'cross' ? [[5, .1], [1.8, .45]] : [[30, .045], [13, .13], [5, .42]];
-      for (const [w, a] of passes) {
+      // halo de fósforo bajo los dígitos
+      for (const [w, a] of cross ? [[4, .1]] : [[26, .045], [9, .12]]) {
         strokePts(pts, upto);
         ctx.strokeStyle = rgba(C.glow, clamp(a * I * 1.6));
-        ctx.lineWidth = w / k * (e.kind === 'cross' ? .6 : 1);
+        ctx.lineWidth = w / k;
         ctx.stroke();
       }
-      strokePts(pts, upto);
-      ctx.strokeStyle = rgba(C.bolt, clamp(.5 * I + e.strike * .7));
-      ctx.lineWidth = (e.strike > .05 ? 2.8 : 1.7) / k;
-      ctx.stroke();
+      if (!e.bits || Math.random() < .35) {
+        e.bits = e.bits || Array.from({ length: 160 }, () => (Math.random() < .5 ? '0' : '1'));
+        const i = Math.floor(Math.random() * e.bits.length);
+        e.bits[i] = e.bits[i] === '0' ? '1' : '0';
+      }
+      const size = (cross ? 9 : e.b.type === 'hub' ? 15 : 13) / k;
+      const gap = size * (cross ? 1.7 : .95);
+      const lanes = cross ? [0] : e.b.type === 'hub' ? [-1, 0, 1] : [0, 1];
+      ctx.font = `700 ${size}px ${C.display}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const hot = e.strike > .1;
+      const glyphRun = (path, limit, alpha, laneSet) => {
+        let acc = 0, n = 0;
+        const last = Math.min(Math.floor(limit), path.length - 1);
+        for (let i = 1; i <= last; i++) {
+          const [ax, ay] = path[i - 1], [bx, by] = path[i];
+          const seg = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / seg, ny = (bx - ax) / seg;
+          acc += seg;
+          while (acc >= gap) {
+            acc -= gap;
+            const f = 1 - acc / seg, x = ax + (bx - ax) * f, y = ay + (by - ay) * f;
+            for (const l of laneSet) {
+              ctx.fillStyle = l === 0 ? rgba(hot ? C.bolt : C.glow, clamp(alpha)) : rgba(C.glow, clamp(alpha * .45));
+              ctx.fillText(e.bits[(n + l * 7 + 160) % 160], x + nx * l * size * .8, y + ny * l * size * .8);
+            }
+            n++;
+          }
+        }
+      };
+      glyphRun(pts, upto, .35 + I * 1.1, lanes);
       if (e.strike > .05 || e.grow < 1) {
         for (const fk of e.forks) {
           if (e.grow < fk.at) continue;
-          strokePts(fk.pts, clamp((e.grow - fk.at) / (1 - fk.at)) * (fk.pts.length - 1));
-          ctx.strokeStyle = rgba(C.bolt, clamp(.2 + e.strike * .6) * (e.grow < 1 ? 1 : e.strike));
-          ctx.lineWidth = 1.6 / k;
-          ctx.stroke();
+          glyphRun(fk.pts, clamp((e.grow - fk.at) / (1 - fk.at)) * (fk.pts.length - 1), (.3 + e.strike) * (e.grow < 1 ? 1 : e.strike), [0]);
         }
       }
       // líder escalonado: la punta incandescente avanza antes que el canal
@@ -563,7 +511,16 @@
       ctx.save();
       ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.clip();
       ctx.fillStyle = C.ridge; ctx.fillRect(-R, -R, R * 2, R * 2);
-      if (photo.complete && photo.naturalWidth) ctx.drawImage(photo, -R, -R, R * 2, R * 2);
+      if (photo.complete && photo.naturalWidth) {
+        ctx.drawImage(photo, -R, -R, R * 2, R * 2);
+        if (!hot) { // en reposo, en verde de terminal; al pasar el cursor, a color
+          ctx.globalCompositeOperation = 'color';
+          ctx.fillStyle = rgba(C.glow, .75); ctx.fillRect(-R, -R, R * 2, R * 2);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.fillStyle = rgba(C.sky, .22);
+        for (let y = -R; y < R; y += 3 / k) ctx.fillRect(-R, y, R * 2, 1 / k);
+      }
       ctx.restore();
       ctx.strokeStyle = hot ? C.sodium : rgba(C.bolt, .85); ctx.lineWidth = (hot ? 2 : 1.4) / k;
       ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.stroke();
@@ -588,7 +545,6 @@
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
       const m = stacked();
-      const face = getComputedStyle(document.documentElement).getPropertyValue('--font-body').trim();
       // las etiquetas se colocan por prioridad; si una choca con otra se desplaza una línea o se omite
       const placed = [];
       const rank = n => (n === hover || n === selected ? 0 : n.type === 'hub' ? 1 : n.type === 'sub' ? 2 : 3);
@@ -610,8 +566,9 @@
         else { y = sy + Math.sign(s || 1) * (rr + 4); ctx.textAlign = 'center'; }
         ctx.font = n.type === 'hub' ? `600 ${m ? 16 : 20}px ${C.display}`
           : n.type === 'sub' ? `600 ${m ? 13 : 15}px ${C.display}`
-          : `500 ${m ? 13 : 15}px ${face}`;
-        const w = ctx.measureText(n.label).width, lh = m ? 17 : n.type === 'hub' ? 24 : 19;
+          : `500 ${m ? 12.5 : 14}px ${C.display}`;
+        const text = n.type === 'hub' ? `${n.label.toLowerCase()}/` : n.label;
+        const w = ctx.measureText(text).width, lh = m ? 17 : n.type === 'hub' ? 24 : 19;
         const left = () => ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - w : x - w / 2;
         const hits = () => placed.some(r => left() < r.x + r.w && left() + w > r.x && y - lh / 2 < r.y + r.h && y + lh / 2 > r.y);
         let tries = 0;
@@ -620,9 +577,9 @@
         placed.push({ x: left() - 3, y: y - lh / 2, w: w + 6, h: lh });
         ctx.globalAlpha = n.pop * (hover && !near ? .3 : 1);
         ctx.strokeStyle = rgba(C.sky, .85); ctx.lineWidth = 4;
-        ctx.strokeText(n.label, x, y);
+        ctx.strokeText(text, x, y);
         ctx.fillStyle = n === hover || n === selected ? C.sodium : n.type === 'leaf' ? C.ink : C.title[n.branch] || C.ink;
-        ctx.fillText(n.label, x, y);
+        ctx.fillText(text, x, y);
       }
       ctx.globalAlpha = 1;
     }
@@ -793,6 +750,7 @@
         </div></section>`);
       $('#story').innerHTML = html.join('');
       this.sections = [...document.querySelectorAll('.chapter')];
+      asCommands(this.sections);
       reveal(this.sections);
       this.hubIndex = Object.fromEntries(graph.hubs.map((h, i) => [h.branch, i + 1]));
 
@@ -831,6 +789,28 @@
     },
   };
 
+  // ---------- títulos como comandos de terminal ----------
+  const CMD = { about: './sobre-mí', projects: './proyectos', langs: './lenguajes', skills: './habilidades', career: './experiencia', social: './contacto' };
+  function asCommands(sections) {
+    for (const sec of sections) {
+      const h = sec.querySelector('h1, h2');
+      if (!h) continue;
+      const label = h.textContent;
+      const text = sec.classList.contains('intro') ? label : sec.classList.contains('final') ? './conectar --todo' : CMD[sec.dataset.branch] || label;
+      h.innerHTML = `<span class="sr">${esc(label)}</span><span aria-hidden="true"><span class="ps1">❯</span><span class="cmd">${esc(text)}</span><span class="caret"></span></span>`;
+    }
+  }
+  // descifrado: el título sale de ceros y unos y se resuelve de izquierda a derecha
+  function decode(el, dur = 900) {
+    const final = el.dataset.text || (el.dataset.text = el.textContent);
+    const t0 = performance.now();
+    (function step(t) {
+      const p = clamp((t - t0) / dur), n = Math.floor(p * final.length);
+      el.textContent = final.slice(0, n) + [...final.slice(n)].map(ch => (ch === ' ' ? ' ' : Math.random() < .5 ? '0' : '1')).join('');
+      if (p < 1) requestAnimationFrame(step); else el.textContent = final;
+    })(t0);
+  }
+
   // ---------- revelado al hacer scroll (GSAP ScrollTrigger) ----------
   // cada bloque llega desde un lado, de desenfocado a nítido, descubierto por un gradiente difuso
   function reveal(sections) {
@@ -844,6 +824,11 @@
         parts.forEach(p => p.classList.add('rv', ...(fromRight ? ['from-right'] : [])));
         const from = { opacity: 0, x: fromRight ? 90 : -90, filter: 'blur(18px)', '--m': '-35%' };
         const to = { opacity: 1, x: 0, filter: 'blur(0px)', '--m': '100%', ease: 'power2.out', stagger: .06 };
+        const cmd = sec.querySelector('.cmd');
+        if (cmd) {
+          if (i === 0) decode(cmd, 1200);
+          else ScrollTrigger.create({ trigger: sec, start: 'top 80%', onEnter: () => decode(cmd), onEnterBack: () => decode(cmd, 600) });
+        }
         if (i === 0) gsap.fromTo(parts, from, { ...to, duration: 1.3, delay: .2 });
         else gsap.fromTo(parts, from, { ...to, scrollTrigger: { trigger: sec, start: 'top 88%', end: 'top 30%', scrub: .8 } });
       });
