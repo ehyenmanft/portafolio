@@ -15,7 +15,6 @@
   --color-ink: #dcffe8;
   --color-mist: #86c49c;
   --color-bolt: #eafff1;
-  --color-label: #f7fff9;
   --color-glow: #00ff66;
   --color-sodium: #00ff66;
   --color-sodium-hover: #6dffa6;
@@ -96,7 +95,7 @@ main { position: relative; z-index: 1; pointer-events: none; }
 .chapter[data-branch="career"] { --t1: var(--title-career-1); --t2: var(--title-career-2); }
 .chapter[data-branch="social"] { --t1: var(--title-social-1); --t2: var(--title-social-2); }
 .copy h1, .copy h2 { font-family: var(--font-display); font-style: italic; font-weight: 700; overflow-wrap: break-word; }
-.copy h1 { font-size: clamp(50px, 6.6vw, 100px); line-height: .95; letter-spacing: -.03em; margin: 0 0 24px; }
+.copy h1 { font-size: clamp(40px, 4.4vw, 68px); line-height: .95; letter-spacing: -.03em; margin: 0 0 24px; }
 .copy h2 { font-size: clamp(34px, 3.7vw, 54px); line-height: 1; letter-spacing: -.02em; margin: 0 0 18px; }
 .cmd {
   background: linear-gradient(100deg, var(--t1), var(--t2));
@@ -120,6 +119,10 @@ main { position: relative; z-index: 1; pointer-events: none; }
   will-change: transform, filter, opacity;
 }
 .copy p { color: var(--color-mist); margin: 0 0 16px; max-width: 34em; }
+/* el apodo de la portada se lee de una pieza: prompt, comando y cursor en la misma línea */
+.copy h1 > [aria-hidden] { white-space: nowrap; }
+.copy .realname { font: italic 600 clamp(20px, 2vw, 26px)/1.2 var(--font-display); color: var(--color-ink); margin: -8px 0 18px; }
+.copy .realname::before { content: "// "; font-style: normal; color: var(--color-mist); }
 .copy .lede { font-size: 20px; line-height: 1.5; color: var(--color-ink); max-width: 24em; }
 .copy .lede::before { content: "> "; font-family: var(--font-display); color: var(--color-glow); }
 
@@ -200,7 +203,7 @@ main { position: relative; z-index: 1; pointer-events: none; }
   .chapter.intro { padding-top: 62vh; padding-top: 62svh; }
   .copy { width: min(100%, 36rem); margin: -48px auto 0; }
   .chapter.final { align-items: center; justify-content: flex-start; }
-  .copy h1 { font-size: clamp(46px, 14vw, 76px); }
+  .copy h1 { font-size: clamp(34px, 10.5vw, 48px); }
   .copy h2 { font-size: clamp(30px, 9vw, 44px); }
   .copy .lede { font-size: 19px; }
   #panel {

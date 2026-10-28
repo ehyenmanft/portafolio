@@ -19,7 +19,7 @@
   const C = {};
   function readTokens() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['sky', 'sky-low', 'rain', 'ridge', 'ink', 'mist', 'bolt', 'glow', 'sodium', 'label']) {
+    for (const k of ['sky', 'sky-low', 'rain', 'ridge', 'ink', 'mist', 'bolt', 'glow', 'sodium']) {
       C[k.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = cs.getPropertyValue(`--color-${k}`).trim();
     }
     C.title = {};
@@ -103,7 +103,7 @@
     };
     const cross = (a, b) => { if (byId.has(a) && byId.has(b)) links.push({ a: byId.get(a), b: byId.get(b), kind: 'cross' }); };
 
-    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.name, data: { kind: 'root' } });
+    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.alias || P.name, data: { kind: 'root' } });
     const hub = key => add({ id: `hub:${key}`, type: 'hub', depth: 1, branch: key, label: BRANCH_LABEL[key], data: { kind: 'hub' } }, root);
     const child = (parent, n) => add({ type: 'leaf', depth: parent.depth + 1, branch: parent.branch, ...n }, parent);
 
@@ -582,11 +582,12 @@
         if (!m && left() < textEdge && rank(n) > 1) continue;
         placed.push({ x: left() - 3, y: y - lh / 2, w: w + 6, h: lh });
         ctx.globalAlpha = n.pop * (hover && !near ? .3 : 1);
-        // letra blanca con contorno del verde de su rama, sobre un halo oscuro que la separa de la lluvia
-        const tone = n === hover || n === selected ? C.sodium : C.title[n.branch] || C.glow;
-        ctx.lineWidth = 7; ctx.strokeStyle = rgba(C.sky, .9); ctx.strokeText(text, x, y);
-        ctx.lineWidth = n.type === 'leaf' ? 1.3 : 1.8; ctx.strokeStyle = tone; ctx.strokeText(text, x, y);
-        ctx.fillStyle = C.label; ctx.fillText(text, x, y);
+        // al estilo Matrix: el verde de su rama con resplandor de fósforo, sobre un halo oscuro que la separa de la lluvia
+        const tone = n === hover || n === selected ? C.bolt : C.title[n.branch] || C.glow;
+        ctx.lineWidth = 6; ctx.strokeStyle = rgba(C.sky, .92); ctx.strokeText(text, x, y);
+        ctx.shadowColor = rgba(C.glow, .85); ctx.shadowBlur = n.type === 'leaf' ? 8 : 14;
+        ctx.fillStyle = tone; ctx.fillText(text, x, y);
+        ctx.shadowBlur = 0;
       }
       ctx.globalAlpha = 1;
     }
@@ -737,7 +738,8 @@
       const email = (P.links || []).find(l => /^mailto:/.test(l.url));
       const html = [`
         <section class="chapter intro" data-i="0" id="inicio"><div class="copy">
-          <h1>${esc(P.name)}</h1>
+          <h1>${esc(P.alias || P.name)}</h1>
+          ${P.alias ? `<p class="realname">${esc(P.name)}</p>` : ''}
           <p class="lede">Hago herramientas que resuelven cosas concretas, desde ${esc((P.location || 'Venezuela').split(',')[0])}.</p>
           <div class="actions">
             <a class="btn" href="#projects" data-jump="projects">Ver proyectos</a>
@@ -753,7 +755,7 @@
             ${email ? `<a class="btn" href="${esc(email.url)}">Escribirme</a>` : ''}
             <button class="btn quiet" type="button" data-cv>Ver CV</button>
           </div>
-          <p class="colophon">© ${new Date().getFullYear()} ${esc(P.name)}. Proyectos leídos en vivo desde GitHub.</p>
+          <p class="colophon">© ${new Date().getFullYear()} ${esc(P.name)}${P.alias ? ` (${esc(P.alias)})` : ''}. Proyectos leídos en vivo desde GitHub.</p>
         </div></section>`);
       $('#story').innerHTML = html.join('');
       this.sections = [...document.querySelectorAll('.chapter')];
@@ -906,9 +908,9 @@
     switch (x.kind) {
       case 'root':
         return `<img class="avatar" src="${esc(P.avatar || U.avatar_url)}" alt="">
-          <h2>${esc(P.name)}</h2>
+          <h2>${esc(P.alias || P.name)}</h2>
           <p>${esc(P.bio || U.bio)}</p>
-          ${facts([['Usuario', P.handle], ['Ubicación', P.location], ['Proyectos', GRAPH.repos.length], ['En GitHub desde', new Date(U.created_at).getFullYear()]])}
+          ${facts([['Nombre', P.name], ['Usuario', P.handle], ['Ubicación', P.location], ['Proyectos', GRAPH.repos.length], ['En GitHub desde', new Date(U.created_at).getFullYear()]])}
           <div class="actions">${(P.links || []).filter(l => /^mailto:/.test(l.url)).map(l => linkBtn('Escribirme', l.url)).join('')}${linkBtn('GitHub', U.html_url || `https://github.com/${P.github}`, true)}</div>`;
       case 'hub':
       case 'group':
@@ -957,7 +959,7 @@
     $('#cv').innerHTML = `<div class="cv">
       <div class="cv-head">
         <img src="${esc(P.avatar || U.avatar_url)}" alt="Foto de ${esc(P.name)}">
-        <div><h1>${esc(P.name)}</h1><p>${esc(P.headline)} en ${esc(P.location || '')}</p></div>
+        <div><h1>${esc(P.name)}</h1><p>${P.alias ? `${esc(P.alias)}, ` : ''}${esc(P.headline)} en ${esc(P.location || '')}</p></div>
       </div>
       <div class="actions">
         <button class="btn" type="button" onclick="print()">Imprimir o guardar PDF</button>
@@ -1011,7 +1013,7 @@
     readTokens();
     PROFILE = await getJSON('data/profile.json');
     GH = await loadGitHub(PROFILE.github);
-    $('#brand').textContent = PROFILE.name;
+    $('#brand').textContent = PROFILE.alias || PROFILE.name;
     GRAPH = buildGraph(PROFILE, GH);
     layout(GRAPH);
     story.build(GRAPH, PROFILE);
