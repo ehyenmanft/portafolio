@@ -1011,9 +1011,37 @@
   }
 
   // ---------- arranque ----------
+  // ---------- arranque de terminal: cada línea nace en binario y se teclea ----------
+  // usa temporizadores y no fotogramas, para no quedarse parada con la pestaña en segundo plano
+  const boot = (() => {
+    const el = $('#loader');
+    let chain = Promise.resolve();
+    return {
+      start() { el.textContent = ''; el.classList.add('boot'); },
+      line(text) {
+        chain = chain.then(() => new Promise(done => {
+          const row = document.createElement('div');
+          row.className = 'boot-line';
+          el.append(row);
+          const t0 = performance.now(), dur = clamp(text.length * 24, 260, 700);
+          (function step() {
+            const k = Math.floor(clamp((performance.now() - t0) / dur) * text.length);
+            row.textContent = `> ${text.slice(0, k)}${toBits(text.slice(k))}`;
+            if (k < text.length) setTimeout(step, 28); else done();
+          })();
+        }));
+      },
+      // espera a que termine de teclear, pero nunca más de 3 s
+      finished: () => Promise.race([chain, new Promise(r => setTimeout(r, 3000))]),
+    };
+  })();
+
   async function main() {
     readTokens();
+    boot.start();
+    boot.line('iniciando terminal…');
     PROFILE = await getJSON('data/profile.json');
+    boot.line(`leyendo github.com/${PROFILE.github}…`);
     GH = await loadGitHub(PROFILE.github);
     $('#brand').innerHTML = `${esc(PROFILE.name)}${PROFILE.alias ? ` <span class="handle">${esc(PROFILE.alias)}</span>` : ''}`;
     GRAPH = buildGraph(PROFILE, GH);
@@ -1023,6 +1051,10 @@
     renderCV(PROFILE, GH, GRAPH);
     setupNav();
     document.fonts?.ready.then(() => story.measure());
+    const visible = GRAPH.repos.length;
+    boot.line(`${plural(visible, 'proyecto encontrado', 'proyectos encontrados')}`);
+    boot.line('encendiendo la red…');
+    await boot.finished();
     $('#loader').classList.add('gone');
   }
 

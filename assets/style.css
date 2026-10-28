@@ -187,6 +187,12 @@ main { position: relative; z-index: 1; pointer-events: none; }
   background: var(--color-sky); color: var(--color-glow); font: 500 15px/1 var(--font-display); transition: opacity .6s;
 }
 #loader.gone { opacity: 0; pointer-events: none; }
+#loader.boot { justify-content: center; align-content: center; gap: 12px; padding: 0 20px; }
+.boot-line { white-space: pre-wrap; line-height: 1.4; min-width: min(30ch, 80vw); }
+.boot-line:last-child::after {
+  content: ""; display: inline-block; width: .55em; height: 1em; margin-left: .2em; vertical-align: -.15em;
+  background: var(--color-glow); animation: blink 1.05s steps(1) infinite;
+}
 
 /* ---------- CV ---------- */
 #cv { position: relative; z-index: 2; padding: 120px var(--gutter) 80px; min-height: 100vh; }
