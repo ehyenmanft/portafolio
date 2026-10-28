@@ -2,7 +2,7 @@
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V5 · weakest: S, el verde Matrix es un lugar común; se ancla en lo concreto: los títulos son comandos reales y el rayo está escrito en binario */
 /* waive 2b: el usuario pidió títulos con color; cada rama usa una rampa de un solo tono verde (paradas a menos de 40°), ambas en tokens */
 /* waive 64: la monoespaciada es el material de la página (una terminal), no una etiqueta decorativa */
-/* waive 3a: el usuario pidió que cada bloque aparezca con desenfoque y desplazamiento lateral al hacer scroll; con "reducir movimiento" el texto aparece sin animar */
+/* waive 3a: el usuario pidió una página dinámica: cada bloque entra de izquierda a derecha con desenfoque y su texto se teclea; con "reducir movimiento" se suaviza (sin desenfoque ni destellos, desplazamiento corto) */
 /* waive 58: el capítulo de proyectos lista nueve repositorios reales (unas 95 palabras); recortarlos escondería el trabajo */
 
 :root {
@@ -119,10 +119,6 @@ main { position: relative; z-index: 1; pointer-events: none; }
   mask-image: linear-gradient(90deg, #000 var(--m, 100%), transparent calc(var(--m, 100%) + 32%));
   will-change: transform, filter, opacity;
 }
-.rv.from-right {
-  -webkit-mask-image: linear-gradient(270deg, #000 var(--m, 100%), transparent calc(var(--m, 100%) + 32%));
-  mask-image: linear-gradient(270deg, #000 var(--m, 100%), transparent calc(var(--m, 100%) + 32%));
-}
 .copy p { color: var(--color-mist); margin: 0 0 16px; max-width: 34em; }
 .copy .lede { font-size: 20px; line-height: 1.5; color: var(--color-ink); max-width: 24em; }
 .copy .lede::before { content: "> "; font-family: var(--font-display); color: var(--color-glow); }
@@ -217,7 +213,6 @@ main { position: relative; z-index: 1; pointer-events: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .caret { animation: none; }
   html { scroll-behavior: auto; }
   .rv { -webkit-mask-image: none; mask-image: none; }
   #panel, #loader { transition: none; }

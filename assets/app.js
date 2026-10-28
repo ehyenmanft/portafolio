@@ -3,7 +3,10 @@
 
   const CACHE_KEY = 'gh-cache-v1';
   const CACHE_TTL = 60 * 60 * 1000; // 1 h: la API pública de GitHub permite 60 peticiones/hora
-  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // la página es animada por diseño (lo pidió el dueño). Con "reducir movimiento" del sistema no se apaga:
+  // se suaviza (sin destellos de pantalla, desplazamientos cortos y sin desenfoque)
+  const REDUCED = false;
+  const CALM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const BRANCH_LABEL = {
     about: 'Sobre mí', projects: 'Proyectos', langs: 'Lenguajes',
@@ -325,7 +328,7 @@
     }
     function lightUp(e, power) {
       regen(e); e.strike = Math.max(e.strike, power);
-      flash = Math.max(flash, power * (e.b.type === 'hub' ? 1 : .5));
+      flash = Math.max(flash, power * (e.b.type === 'hub' ? 1 : .5) * (CALM ? .35 : 1));
       flashX = toScreen((e.a.x + e.b.x) / 2, 0)[0];
     }
 
@@ -486,16 +489,17 @@
       const k = cam.k, p = n.pop;
       const hot = n === hover || n === selected;
       const dim = hover && !hoverNear.has(n.id) ? .35 : 1;
+      const x = n.x - (1 - p) * 60 / k, y = n.y; // la hoja llega desde la izquierda
       const r = dotSize(n) * (p < 1 ? 1 + Math.sin(p * Math.PI) * .8 : 1) * (hot ? 1.3 : 1) / k;
       ctx.globalAlpha = p * dim;
-      const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 3.2);
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2);
       gr.addColorStop(0, rgba(C.glow, .45)); gr.addColorStop(1, rgba(C.glow, 0));
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(n.x, n.y, r * 3.2, 0, 6.283); ctx.fill();
-      ctx.fillStyle = C.bolt; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r * 3.2, 0, 6.283); ctx.fill();
+      ctx.fillStyle = C.bolt; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
       if (n.type !== 'leaf' || hot) {
         ctx.strokeStyle = hot ? C.sodium : n.type === 'hub' ? C.title[n.branch] : rgba(C.bolt, .45);
         ctx.lineWidth = (hot ? 2 : n.type === 'hub' ? 1.8 : 1.2) / k;
-        ctx.beginPath(); ctx.arc(n.x, n.y, r + (n.type === 'hub' ? 7 : 5) / k, 0, 6.283); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, r + (n.type === 'hub' ? 7 : 5) / k, 0, 6.283); ctx.stroke();
       }
       ctx.globalAlpha = 1;
     }
@@ -560,7 +564,7 @@
         const tip = n.type === 'hub' && n.branch !== activeBranch && n.children.length;
         const [sx, sy] = tip ? toScreen(n.x + c * n.reach, n.y + s * n.reach) : toScreen(n.x, n.y);
         const rr = tip ? 16 : dotSize(n) + (n.type === 'hub' ? 18 : 12);
-        let x = sx, y = sy;
+        let x = sx - (1 - n.pop) * 60, y = sy; // el nombre se desliza de izquierda a derecha
         if (n.type === 'hub' && !tip) { y = sy + rr + 6; ctx.textAlign = 'center'; }
         else if (Math.abs(c) > .35) { x = sx + Math.sign(c) * rr; ctx.textAlign = c > 0 ? 'left' : 'right'; }
         else { y = sy + Math.sign(s || 1) * (rr + 4); ctx.textAlign = 'center'; }
@@ -803,39 +807,77 @@
       h.innerHTML = `<span class="sr">${esc(label)}</span><span aria-hidden="true"><span class="ps1">❯</span><span class="cmd">${esc(text)}</span><span class="caret"></span></span>`;
     }
   }
-  // descifrado: el título sale de ceros y unos y se resuelve de izquierda a derecha
-  function decode(el, dur = 900) {
-    const final = el.dataset.text || (el.dataset.text = el.textContent);
-    const t0 = performance.now();
-    (function step(t) {
-      const p = clamp((t - t0) / dur), n = Math.floor(p * final.length);
-      el.textContent = final.slice(0, n) + [...final.slice(n)].map(ch => (ch === ' ' ? ' ' : Math.random() < .5 ? '0' : '1')).join('');
-      if (p < 1) requestAnimationFrame(step); else el.textContent = final;
-    })(t0);
+  // ---------- escritura de terminal ----------
+  // el texto de un bloque se guarda, se vacía y vuelve a entrar carácter a carácter;
+  // en la posición del cursor parpadea un dígito binario
+  const pending = new Map();
+  function prepType(el) {
+    const nodes = [];
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (walk.nextNode()) if (walk.currentNode.nodeValue.trim()) nodes.push([walk.currentNode, walk.currentNode.nodeValue]);
+    if (!nodes.length) return;
+    nodes.forEach(([n]) => { n.nodeValue = ''; });
+    pending.set(el, nodes);
+  }
+  function type(el, seconds) {
+    const nodes = pending.get(el);
+    if (!nodes) return Promise.resolve();
+    pending.delete(el);
+    const total = nodes.reduce((sum, [, t]) => sum + t.length, 0);
+    const cps = total / seconds;
+    el.classList.add('typing');
+    return new Promise(done => {
+      const t0 = performance.now();
+      (function step(t) {
+        const typedCount = Math.floor((t - t0) / 1000 * cps);
+        let budget = typedCount;
+        for (const [n, full] of nodes) {
+          const k = clamp(budget, 0, full.length);
+          n.nodeValue = full.slice(0, k) + (budget > 0 && budget < full.length ? (Math.random() < .5 ? '0' : '1') : '');
+          budget -= full.length;
+        }
+        if (typedCount < total) requestAnimationFrame(step);
+        else { nodes.forEach(([n, full]) => { n.nodeValue = full; }); el.classList.remove('typing'); done(); }
+      })(t0);
+    });
+  }
+  // un capítulo: primero el comando del título, después el resto tecleado como código, en cascada
+  async function typeChapter(sec) {
+    if (sec.dataset.typed) return;
+    sec.dataset.typed = '1';
+    const cmd = sec.querySelector('.cmd');
+    if (cmd) await type(cmd, clamp(cmd.dataset.len * .055, .35, .9));
+    sec.querySelectorAll('.tp').forEach((b, i) => {
+      setTimeout(() => type(b, clamp(b.dataset.len / 160, .25, .9)), i * 110);
+    });
   }
 
   // ---------- revelado al hacer scroll (GSAP ScrollTrigger) ----------
-  // cada bloque llega desde un lado, de desenfocado a nítido, descubierto por un gradiente difuso
+  // cada bloque entra de izquierda a derecha, de desenfocado a nítido, descubierto por un gradiente difuso,
+  // y su texto se teclea al llegar
   function reveal(sections) {
     if (!window.gsap || !window.ScrollTrigger) return; // sin GSAP el texto se ve tal cual
     gsap.registerPlugin(ScrollTrigger);
-    const mm = gsap.matchMedia();
-    mm.add('(prefers-reduced-motion: no-preference)', () => {
-      sections.forEach((sec, i) => {
-        const fromRight = i % 2 === 1;
-        const parts = sec.querySelectorAll('.copy > h1, .copy > h2, .copy > p, .copy > h3, .copy > .actions, .copy > .inline > li, .copy > .items > li');
-        parts.forEach(p => p.classList.add('rv', ...(fromRight ? ['from-right'] : [])));
-        const from = { opacity: 0, x: fromRight ? 90 : -90, filter: 'blur(18px)', '--m': '-35%' };
-        const to = { opacity: 1, x: 0, filter: 'blur(0px)', '--m': '100%', ease: 'power2.out', stagger: .06 };
-        const cmd = sec.querySelector('.cmd');
-        if (cmd) {
-          if (i === 0) decode(cmd, 1200);
-          else ScrollTrigger.create({ trigger: sec, start: 'top 80%', onEnter: () => decode(cmd), onEnterBack: () => decode(cmd, 600) });
-        }
-        if (i === 0) gsap.fromTo(parts, from, { ...to, duration: 1.3, delay: .2 });
-        else gsap.fromTo(parts, from, { ...to, scrollTrigger: { trigger: sec, start: 'top 88%', end: 'top 30%', scrub: .8 } });
+    sections.forEach((sec, i) => {
+      const parts = sec.querySelectorAll('.copy > h1, .copy > h2, .copy > p, .copy > h3, .copy > .actions, .copy > .inline > li, .copy > .items > li, .copy > .colophon');
+      parts.forEach(p => {
+        p.classList.add('rv');
+        if (p.matches('h1, h2')) return;
+        p.classList.add('tp');
+        p.dataset.len = p.textContent.length;
+        prepType(p);
       });
-      return () => sections.forEach(sec => sec.querySelectorAll('.rv').forEach(p => p.classList.remove('rv', 'from-right')));
+      const cmd = sec.querySelector('.cmd');
+      if (cmd) { cmd.dataset.len = cmd.textContent.length; prepType(cmd); }
+      const from = { opacity: 0, x: CALM ? -28 : -110, filter: CALM ? 'blur(0px)' : 'blur(16px)', '--m': '-35%' };
+      const to = { opacity: 1, x: 0, filter: 'blur(0px)', '--m': '100%', ease: 'power3.out', stagger: .05 };
+      if (i === 0) {
+        gsap.fromTo(parts, from, { ...to, duration: 1.1, delay: .15 });
+        setTimeout(() => typeChapter(sec), 250);
+      } else {
+        gsap.fromTo(parts, from, { ...to, scrollTrigger: { trigger: sec, start: 'top 92%', end: 'top 50%', scrub: .6 } });
+        ScrollTrigger.create({ trigger: sec, start: 'top 78%', once: true, onEnter: () => typeChapter(sec) });
+      }
     });
   }
 
