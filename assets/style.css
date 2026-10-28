@@ -169,6 +169,25 @@ main { position: relative; z-index: 1; pointer-events: none; }
 .btn.quiet:hover { border-color: var(--color-mist); }
 .copy .colophon { margin-top: 64px; font-size: 14px; color: var(--color-mist); }
 
+/* ---------- sneak peek: vídeo en una ventana de terminal ---------- */
+.chapter.demo .copy { width: min(860px, 100%); }
+.video-win {
+  pointer-events: auto; margin-top: 22px; overflow: hidden; border-radius: 8px;
+  background: var(--color-glass); -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--color-glass-edge);
+  box-shadow: 0 0 0 1px var(--color-glass-inner) inset, 0 24px 70px var(--color-shadow), 0 0 34px var(--color-glass-glow);
+}
+.video-win .term-bar { padding: 10px 16px; }
+.video-play { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 0; cursor: pointer; background: var(--color-sky); }
+.video-play img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.55) brightness(.7); transition: filter .25s; }
+.video-play:hover img, .video-play:focus-visible img { filter: none; }
+.video-play .play {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 14px 22px; border-radius: 4px; background: var(--color-glow); color: var(--color-on-sodium);
+  font: 700 16px/1 var(--font-display); box-shadow: 0 0 30px var(--color-glass-glow);
+}
+.video-frame { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+
 /* ---------- detalle ---------- */
 #panel {
   position: fixed; z-index: 30; top: 76px; right: max(16px, calc((100% - var(--container)) / 2 + 16px)); width: min(400px, calc(100% - 32px));

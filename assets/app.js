@@ -736,6 +736,7 @@
           <ul class="items">${h.children.map(n => `<li><a class="item" data-node="${esc(n.id)}" href="${esc(n.data.link.url)}" ${/^mailto:/.test(n.data.link.url) ? '' : 'target="_blank" rel="noopener"'}><b>${esc(n.label)}</b><span>${esc(bare(n.data.link.url))}</span></a></li>`).join('')}</ul>`,
       };
       const email = (P.links || []).find(l => /^mailto:/.test(l.url));
+      const colophon = `<p class="colophon">© ${new Date().getFullYear()} ${esc(P.name)}${P.alias ? ` (${esc(P.alias)})` : ''}. Proyectos leídos en vivo desde GitHub.</p>`;
       const html = [`
         <section class="chapter intro" data-i="0" id="inicio"><div class="copy">
           <h1>${esc(P.name)}</h1>
@@ -755,7 +756,22 @@
             ${email ? `<a class="btn" href="${esc(email.url)}">Escribirme</a>` : ''}
             <button class="btn quiet" type="button" data-cv>Ver CV</button>
           </div>
-          <p class="colophon">© ${new Date().getFullYear()} ${esc(P.name)}${P.alias ? ` (${esc(P.alias)})` : ''}. Proyectos leídos en vivo desde GitHub.</p>
+          ${P.video ? '' : colophon}
+        </div></section>`);
+      // al final, un vídeo de muestra en una ventana de terminal; el reproductor solo se carga al pulsarlo
+      if (P.video) html.push(`
+        <section class="chapter demo" data-i="${graph.hubs.length + 2}" id="sneak-peek"><div class="copy">
+          <h2>Sneak peek</h2>
+          <p>${esc(P.video.text)}</p>
+          <div class="video-win">
+            <div class="term-bar"><span class="term-path">play sneak-peek.mp4</span></div>
+            <button type="button" class="video-play" data-video="${esc(P.video.id)}" aria-label="Reproducir el vídeo: ${esc(P.video.title)}">
+              <img src="https://i.ytimg.com/vi/${esc(P.video.id)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360">
+              <span class="play">▶ reproducir</span>
+            </button>
+          </div>
+          <div class="actions"><a class="btn quiet" href="https://youtu.be/${esc(P.video.id)}" target="_blank" rel="noopener">Ver en YouTube</a></div>
+          ${colophon}
         </div></section>`);
       $('#story').innerHTML = html.join('');
       this.sections = [...document.querySelectorAll('.chapter')];
@@ -768,6 +784,16 @@
         const a = e.target.closest('[data-node]');
         if (a && a.tagName === 'BUTTON') { e.preventDefault(); scene.focusNode(GRAPH.byId.get(a.dataset.node)); }
         if (e.target.closest('[data-cv]')) setView('cv');
+        const play = e.target.closest('[data-video]');
+        if (play) {
+          const f = document.createElement('iframe');
+          f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(play.dataset.video)}?autoplay=1&rel=0`;
+          f.title = play.getAttribute('aria-label').replace('Reproducir el vídeo: ', '');
+          f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+          f.allowFullscreen = true;
+          f.className = 'video-frame';
+          play.replaceWith(f);
+        }
       });
       // pasar el ratón por el texto ilumina su punto en la red
       root.addEventListener('pointerover', e => {
@@ -805,7 +831,7 @@
       const h = sec.querySelector('h1, h2');
       if (!h) continue;
       const label = h.textContent;
-      const text = sec.classList.contains('intro') ? label : sec.classList.contains('final') ? './conectar --todo' : CMD[sec.dataset.branch] || label;
+      const text = sec.classList.contains('intro') ? label : sec.classList.contains('final') ? './conectar --todo' : sec.classList.contains('demo') ? './sneak-peek' : CMD[sec.dataset.branch] || label;
       h.innerHTML = `<span class="sr">${esc(label)}</span><span aria-hidden="true"><span class="ps1">❯</span><span class="cmd">${esc(text)}</span><span class="caret"></span></span>`;
     }
   }
@@ -864,10 +890,10 @@
     if (!window.gsap || !window.ScrollTrigger) return; // sin GSAP el texto se ve tal cual
     gsap.registerPlugin(ScrollTrigger);
     sections.forEach((sec, i) => {
-      const parts = sec.querySelectorAll('.copy > h1, .copy > h2, .copy > p, .copy > h3, .copy > .actions, .copy > .inline > li, .copy > .items > li, .copy > .colophon');
+      const parts = sec.querySelectorAll('.copy > h1, .copy > h2, .copy > p, .copy > h3, .copy > .actions, .copy > .inline > li, .copy > .items > li, .copy > .colophon, .copy > .video-win');
       parts.forEach(p => {
         p.classList.add('rv');
-        if (p.matches('h1, h2')) return;
+        if (p.matches('h1, h2, .video-win')) return;
         p.classList.add('tp');
         p.dataset.len = p.textContent.length;
         prepType(p);
