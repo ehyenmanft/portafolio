@@ -77,14 +77,22 @@
     const cached = store.get(CACHE_KEY);
     const fresh = cached && cached.user?.login?.toLowerCase() === user.toLowerCase();
     if (fresh && Date.now() - cached.t < CACHE_TTL) return { ...cached, source: 'cache' };
-    try {
-      const [u, repos] = await Promise.all([
-        getJSON(`https://api.github.com/users/${user}`),
-        getJSON(`https://api.github.com/users/${user}/repos?per_page=100&sort=pushed`),
-      ]);
+    const live = Promise.all([
+      getJSON(`https://api.github.com/users/${user}`),
+      getJSON(`https://api.github.com/users/${user}/repos?per_page=100&sort=pushed`),
+    ]).then(([u, repos]) => {
       const data = { t: Date.now(), user: u, repos: repos.map(slimRepo) };
       store.set(CACHE_KEY, data);
       return { ...data, source: 'live' };
+    });
+    // en una red móvil lenta no se hace esperar a nadie: pasado 1,5 s se pinta con lo que haya
+    const slow = new Promise(r => setTimeout(r, 1500, 'slow'));
+    try {
+      const first = await Promise.race([live, slow]);
+      if (first !== 'slow') return first;
+      live.catch(() => {}); // la respuesta tardía solo se guarda en caché
+      if (fresh) return { ...cached, source: 'cache' };
+      return { ...(await getJSON('data/github.json')), source: 'snapshot' };
     } catch (e) {
       console.warn('GitHub API no disponible, usando copia local', e);
       if (fresh) return { ...cached, source: 'cache' };
@@ -288,8 +296,9 @@
     }
 
     function resize() {
-      DPR = Math.min(devicePixelRatio || 1, 2);
+      if (W && innerWidth === W && Math.abs(innerHeight - H) < 160) return;
       W = innerWidth; H = innerHeight;
+      DPR = Math.min(devicePixelRatio || 1, stacked() ? 1.5 : 2); // en móvil, menos píxeles que pintar
       canvas.width = W * DPR; canvas.height = H * DPR;
       buildLandscape();
       story.measure();
@@ -442,8 +451,9 @@
         e.bits[i] = e.bits[i] === '0' ? '1' : '0';
       }
       const size = (cross ? 9 : e.b.type === 'hub' ? 15 : 13) / k;
-      const gap = size * (cross ? 1.7 : .95);
-      const lanes = cross ? [0] : e.b.type === 'hub' ? [-1, 0, 1] : [0, 1];
+      const light = stacked();
+      const gap = size * (cross ? 1.7 : light ? 1.15 : .95);
+      const lanes = cross ? [0] : e.b.type === 'hub' ? (light ? [0, 1] : [-1, 0, 1]) : (light ? [0] : [0, 1]);
       ctx.font = `700 ${size}px ${C.display}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const hot = e.strike > .1;
@@ -585,9 +595,8 @@
         // al estilo Matrix: el verde de su rama con resplandor de fósforo, sobre un halo oscuro que la separa de la lluvia
         const tone = n === hover || n === selected ? C.bolt : C.title[n.branch] || C.glow;
         ctx.lineWidth = 6; ctx.strokeStyle = rgba(C.sky, .92); ctx.strokeText(text, x, y);
-        ctx.shadowColor = rgba(C.glow, .85); ctx.shadowBlur = n.type === 'leaf' ? 8 : 14;
+        ctx.lineWidth = n.type === 'leaf' ? 3 : 4; ctx.strokeStyle = rgba(C.glow, .28); ctx.strokeText(text, x, y);
         ctx.fillStyle = tone; ctx.fillText(text, x, y);
-        ctx.shadowBlur = 0;
       }
       ctx.globalAlpha = 1;
     }
@@ -900,7 +909,8 @@
       });
       const cmd = sec.querySelector('.cmd');
       if (cmd) { cmd.dataset.len = cmd.textContent.length; prepType(cmd); }
-      const from = { opacity: 0, x: CALM ? -28 : -110, filter: CALM ? 'blur(0px)' : 'blur(16px)', '--m': '-35%' };
+      const soft = CALM || innerWidth <= 760; // el filtro blur en ~80 elementos pesa demasiado en un móvil
+      const from = { opacity: 0, x: CALM ? -28 : soft ? -60 : -110, filter: soft ? 'blur(0px)' : 'blur(16px)', '--m': '-35%' };
       const to = { opacity: 1, x: 0, filter: 'blur(0px)', '--m': '100%', ease: 'power3.out', stagger: .05 };
       if (i === 0) {
         gsap.fromTo(parts, from, { ...to, duration: 1.1, delay: .15 });
@@ -1079,7 +1089,7 @@
           const row = document.createElement('div');
           row.className = 'boot-line';
           el.append(row);
-          const t0 = performance.now(), dur = clamp(text.length * 24, 260, 700);
+          const t0 = performance.now(), dur = clamp(text.length * 12, 140, 340);
           (function step() {
             const k = Math.floor(clamp((performance.now() - t0) / dur) * text.length);
             row.textContent = `> ${text.slice(0, k)}${toBits(text.slice(k))}`;
@@ -1088,7 +1098,7 @@
         }));
       },
       // espera a que termine de teclear, pero nunca más de 3 s
-      finished: () => Promise.race([chain, new Promise(r => setTimeout(r, 3000))]),
+      finished: () => Promise.race([chain, new Promise(r => setTimeout(r, 700))]),
     };
   })();
 
@@ -1112,6 +1122,7 @@
     boot.line('encendiendo la red…');
     await boot.finished();
     $('#loader').classList.add('gone');
+    performance.mark?.('portafolio:listo'); // para medir cuánto tarda en aparecer la página
   }
 
   main().catch(err => {
