@@ -832,17 +832,18 @@
     el.classList.add('typing');
     return new Promise(done => {
       const t0 = performance.now();
-      (function step(t) {
-        const typedCount = Math.floor((t - t0) / 1000 * cps);
+      // temporizadores y no fotogramas: el tecleo nunca se queda a medias con la pestaña en segundo plano
+      (function step() {
+        const typedCount = Math.floor((performance.now() - t0) / 1000 * cps);
         let budget = typedCount;
         for (const [n, full] of nodes) {
           const k = clamp(budget, 0, full.length);
           n.nodeValue = full.slice(0, k) + toBits(full.slice(k));
           budget -= full.length;
         }
-        if (typedCount < total) requestAnimationFrame(step);
+        if (typedCount < total) setTimeout(step, 30);
         else { nodes.forEach(([n, full]) => { n.nodeValue = full; }); el.classList.remove('typing'); done(); }
-      })(t0);
+      })();
     });
   }
   // un capítulo: primero el comando del título, después el resto tecleado como código, en cascada
@@ -889,12 +890,41 @@
   let scene, GRAPH, PROFILE, GH;
   const panel = $('#panel'), body = panel.querySelector('.panel-body');
 
+  // la barra del panel muestra el comando que lo abrió, como en una terminal
+  const slug = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  function panelCommand(d) {
+    if (d.type === 'root') return 'whoami';
+    const dir = (CMD[d.branch] || './').replace('./', '~/');
+    if (d.type === 'hub') return `ls ${dir}/`;
+    if (d.type === 'sub') return `ls ${dir}/${slug(d.label)}/`;
+    if (d.data.kind === 'link') return `open ${bare(d.data.link.url)}`;
+    const folder = d.parent?.type === 'sub' ? `${slug(d.parent.label)}/` : '';
+    return `cat ${dir}/${folder}${slug(d.label)}`;
+  }
+  let commandTimer = 0;
+  function typeCommand(text) {
+    const el = panel.querySelector('.term-path');
+    clearTimeout(commandTimer);
+    const t0 = performance.now(), dur = clamp(text.length * 18, 200, 600);
+    (function step() {
+      const k = Math.floor(clamp((performance.now() - t0) / dur) * text.length);
+      el.textContent = text.slice(0, k) + toBits(text.slice(k));
+      if (k < text.length) commandTimer = setTimeout(step, 28);
+    })();
+  }
+
   function openPanel(d) {
     body.innerHTML = panelHTML(d);
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
     body.querySelectorAll('button[data-node]').forEach(el => el.addEventListener('click', () => scene.focusNode(GRAPH.byId.get(el.dataset.node))));
-    panel.scrollTop = 0;
+    body.scrollTop = 0;
+    typeCommand(panelCommand(d));
+    // el contenido sale tecleado desde binario, en cascada rápida
+    body.querySelectorAll(':scope > h2, :scope > p, :scope > dl, .items li').forEach((el, i) => {
+      prepType(el);
+      setTimeout(() => type(el, .3), 120 + i * 60);
+    });
   }
   function closePanel() { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); scene?.clearSelection(); }
   panel.querySelector('.close').addEventListener('click', closePanel);
