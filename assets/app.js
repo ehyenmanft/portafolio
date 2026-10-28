@@ -103,7 +103,7 @@
     };
     const cross = (a, b) => { if (byId.has(a) && byId.has(b)) links.push({ a: byId.get(a), b: byId.get(b), kind: 'cross' }); };
 
-    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.alias || P.name, data: { kind: 'root' } });
+    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.name, data: { kind: 'root' } });
     const hub = key => add({ id: `hub:${key}`, type: 'hub', depth: 1, branch: key, label: BRANCH_LABEL[key], data: { kind: 'hub' } }, root);
     const child = (parent, n) => add({ type: 'leaf', depth: parent.depth + 1, branch: parent.branch, ...n }, parent);
 
@@ -738,8 +738,8 @@
       const email = (P.links || []).find(l => /^mailto:/.test(l.url));
       const html = [`
         <section class="chapter intro" data-i="0" id="inicio"><div class="copy">
-          <h1>${esc(P.alias || P.name)}</h1>
-          ${P.alias ? `<p class="realname">${esc(P.name)}</p>` : ''}
+          <h1>${esc(P.name)}</h1>
+          ${P.alias ? `<p class="alias">${esc(P.alias)}</p>` : ''}
           <p class="lede">Hago herramientas que resuelven cosas concretas, desde ${esc((P.location || 'Venezuela').split(',')[0])}.</p>
           <div class="actions">
             <a class="btn" href="#projects" data-jump="projects">Ver proyectos</a>
@@ -813,12 +813,14 @@
   // el texto de un bloque se guarda, se vacía y vuelve a entrar carácter a carácter;
   // en la posición del cursor parpadea un dígito binario
   const pending = new Map();
+  // los textos nacen en binario: cada carácter aún no escrito es un 0 o un 1 que parpadea
+  const toBits = t => t.replace(/\S/g, () => (Math.random() < .5 ? '0' : '1'));
   function prepType(el) {
     const nodes = [];
     const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     while (walk.nextNode()) if (walk.currentNode.nodeValue.trim()) nodes.push([walk.currentNode, walk.currentNode.nodeValue]);
     if (!nodes.length) return;
-    nodes.forEach(([n]) => { n.nodeValue = ''; });
+    nodes.forEach(([n, full]) => { n.nodeValue = toBits(full); });
     pending.set(el, nodes);
   }
   function type(el, seconds) {
@@ -835,7 +837,7 @@
         let budget = typedCount;
         for (const [n, full] of nodes) {
           const k = clamp(budget, 0, full.length);
-          n.nodeValue = full.slice(0, k) + (budget > 0 && budget < full.length ? (Math.random() < .5 ? '0' : '1') : '');
+          n.nodeValue = full.slice(0, k) + toBits(full.slice(k));
           budget -= full.length;
         }
         if (typedCount < total) requestAnimationFrame(step);
@@ -908,9 +910,9 @@
     switch (x.kind) {
       case 'root':
         return `<img class="avatar" src="${esc(P.avatar || U.avatar_url)}" alt="">
-          <h2>${esc(P.alias || P.name)}</h2>
+          <h2>${esc(P.name)}</h2>
           <p>${esc(P.bio || U.bio)}</p>
-          ${facts([['Nombre', P.name], ['Usuario', P.handle], ['Ubicación', P.location], ['Proyectos', GRAPH.repos.length], ['En GitHub desde', new Date(U.created_at).getFullYear()]])}
+          ${facts([['Usuario', P.handle], ['Ubicación', P.location], ['Proyectos', GRAPH.repos.length], ['En GitHub desde', new Date(U.created_at).getFullYear()]])}
           <div class="actions">${(P.links || []).filter(l => /^mailto:/.test(l.url)).map(l => linkBtn('Escribirme', l.url)).join('')}${linkBtn('GitHub', U.html_url || `https://github.com/${P.github}`, true)}</div>`;
       case 'hub':
       case 'group':
@@ -1013,7 +1015,7 @@
     readTokens();
     PROFILE = await getJSON('data/profile.json');
     GH = await loadGitHub(PROFILE.github);
-    $('#brand').textContent = PROFILE.alias || PROFILE.name;
+    $('#brand').innerHTML = `${esc(PROFILE.name)}${PROFILE.alias ? ` <span class="handle">${esc(PROFILE.alias)}</span>` : ''}`;
     GRAPH = buildGraph(PROFILE, GH);
     layout(GRAPH);
     story.build(GRAPH, PROFILE);

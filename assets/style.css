@@ -73,6 +73,7 @@ body.cv-mode #sky, body.cv-mode #story { display: none; }
 }
 .wordmark { font: italic 700 20px/1 var(--font-display); color: var(--color-glow); text-decoration: none; white-space: nowrap; text-shadow: 0 0 12px rgba(0, 255, 102, .45); }
 .wordmark::before { content: "~/"; color: var(--color-mist); font-style: normal; font-weight: 400; margin-right: 2px; }
+.wordmark .handle { font: 500 .72em/1 var(--font-display); font-style: normal; color: var(--color-mist); text-shadow: none; margin-left: .45em; }
 .nav { display: flex; align-items: center; gap: clamp(14px, 2.4vw, 28px); font: 500 14px/1 var(--font-display); }
 .nav a { color: var(--color-mist); text-decoration: none; padding: 10px 0; }
 .nav a:hover { color: var(--color-ink); }
@@ -129,8 +130,8 @@ main { position: relative; z-index: 1; pointer-events: none; }
 .copy p { color: var(--color-mist); margin: 0 0 16px; max-width: 34em; }
 /* el apodo de la portada se lee de una pieza: prompt, comando y cursor en la misma línea */
 .copy h1 > [aria-hidden] { white-space: nowrap; }
-.copy .realname { font: italic 600 clamp(20px, 2vw, 26px)/1.2 var(--font-display); color: var(--color-ink); margin: -8px 0 18px; }
-.copy .realname::before { content: "// "; font-style: normal; color: var(--color-mist); }
+.copy .alias { font: italic 600 clamp(20px, 2vw, 26px)/1.2 var(--font-display); color: var(--color-ink); margin: -8px 0 18px; }
+.copy .alias::before { content: "// "; font-style: normal; color: var(--color-mist); }
 .copy .lede { font-size: 20px; line-height: 1.5; color: var(--color-ink); max-width: 24em; }
 .copy .lede::before { content: "> "; font-family: var(--font-display); color: var(--color-glow); }
 
@@ -203,6 +204,7 @@ main { position: relative; z-index: 1; pointer-events: none; }
 /* ---------- móvil y tableta vertical: la red arriba, el texto debajo ---------- */
 @media (max-width: 760px), (max-width: 1100px) and (orientation: portrait) {
   .nav a { display: none; }
+  .wordmark { font-size: 17px; }
   .chapter { align-items: flex-start; padding: 58vh 0 56px; padding-top: 58svh; }
   .copy {
     padding: 48px 16px 24px;
