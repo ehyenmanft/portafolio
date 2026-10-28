@@ -96,8 +96,8 @@ main { position: relative; z-index: 1; pointer-events: none; }
 .chapter[data-branch="career"] { --t1: var(--title-career-1); --t2: var(--title-career-2); }
 .chapter[data-branch="social"] { --t1: var(--title-social-1); --t2: var(--title-social-2); }
 .copy h1, .copy h2 { font-family: var(--font-display); font-style: italic; font-weight: 700; overflow-wrap: break-word; }
-.copy h1 { font-size: clamp(54px, 7.4vw, 112px); line-height: .95; letter-spacing: -.03em; margin: 0 0 24px; }
-.copy h2 { font-size: clamp(40px, 4.6vw, 66px); line-height: 1; letter-spacing: -.02em; margin: 0 0 18px; }
+.copy h1 { font-size: clamp(50px, 6.6vw, 100px); line-height: .95; letter-spacing: -.03em; margin: 0 0 24px; }
+.copy h2 { font-size: clamp(34px, 3.7vw, 54px); line-height: 1; letter-spacing: -.02em; margin: 0 0 18px; }
 .cmd {
   background: linear-gradient(100deg, var(--t1), var(--t2));
   -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -200,8 +200,8 @@ main { position: relative; z-index: 1; pointer-events: none; }
   .chapter.intro { padding-top: 62vh; padding-top: 62svh; }
   .copy { width: min(100%, 36rem); margin: -48px auto 0; }
   .chapter.final { align-items: center; justify-content: flex-start; }
-  .copy h1 { font-size: clamp(54px, 16vw, 84px); }
-  .copy h2 { font-size: clamp(40px, 12vw, 56px); }
+  .copy h1 { font-size: clamp(46px, 14vw, 76px); }
+  .copy h2 { font-size: clamp(30px, 9vw, 44px); }
   .copy .lede { font-size: 19px; }
   #panel {
     top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 76vh; border-radius: 14px 14px 0 0;
