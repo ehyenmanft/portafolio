@@ -46,6 +46,14 @@ body {
   overflow-x: clip;
 }
 a { color: inherit; }
+
+/* barras de desplazamiento de terminal: pista de fósforo apagado, barra verde que se enciende al tocarla */
+html, #panel { scrollbar-color: var(--color-rain) var(--color-sky); scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--color-sky); border-left: 1px solid var(--color-rule); }
+::-webkit-scrollbar-thumb { background: var(--color-rain); border: 2px solid var(--color-sky); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background: var(--color-glow); }
+::-webkit-scrollbar-corner { background: var(--color-sky); }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--color-sodium); outline-offset: 3px; border-radius: 2px; }
 
