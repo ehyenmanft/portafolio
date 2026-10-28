@@ -16,7 +16,7 @@
   const C = {};
   function readTokens() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['sky', 'sky-low', 'rain', 'ridge', 'ink', 'mist', 'bolt', 'glow', 'sodium']) {
+    for (const k of ['sky', 'sky-low', 'rain', 'ridge', 'ink', 'mist', 'bolt', 'glow', 'sodium', 'label']) {
       C[k.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = cs.getPropertyValue(`--color-${k}`).trim();
     }
     C.title = {};
@@ -546,7 +546,7 @@
       ctx.lineJoin = 'round';
       const m = stacked();
       // las etiquetas se colocan por prioridad; si una choca con otra se desplaza una línea o se omite
-      const placed = [];
+      const placed = [], textEdge = viewArea().x - 8;
       const rank = n => (n === hover || n === selected ? 0 : n.type === 'hub' ? 1 : n.type === 'sub' ? 2 : 3);
       const order = graph.nodes.filter(n => n.type !== 'root').sort((a, b) => rank(a) - rank(b));
       for (const n of order) {
@@ -566,7 +566,7 @@
         else { y = sy + Math.sign(s || 1) * (rr + 4); ctx.textAlign = 'center'; }
         ctx.font = n.type === 'hub' ? `600 ${m ? 16 : 20}px ${C.display}`
           : n.type === 'sub' ? `600 ${m ? 13 : 15}px ${C.display}`
-          : `500 ${m ? 12.5 : 14}px ${C.display}`;
+          : `600 ${m ? 13 : 14.5}px ${C.display}`;
         const text = n.type === 'hub' ? `${n.label.toLowerCase()}/` : n.label;
         const w = ctx.measureText(text).width, lh = m ? 17 : n.type === 'hub' ? 24 : 19;
         const left = () => ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - w : x - w / 2;
@@ -574,12 +574,15 @@
         let tries = 0;
         while (hits() && tries < 4) { y += (tries % 2 ? -1 : 1) * lh * (tries + 1); tries++; }
         if (hits() && rank(n) > 1) continue;
+        // en escritorio, una hoja que invadiría la columna de texto solo se muestra al señalarla
+        if (!m && left() < textEdge && rank(n) > 1) continue;
         placed.push({ x: left() - 3, y: y - lh / 2, w: w + 6, h: lh });
         ctx.globalAlpha = n.pop * (hover && !near ? .3 : 1);
-        ctx.strokeStyle = rgba(C.sky, .85); ctx.lineWidth = 4;
-        ctx.strokeText(text, x, y);
-        ctx.fillStyle = n === hover || n === selected ? C.sodium : n.type === 'leaf' ? C.ink : C.title[n.branch] || C.ink;
-        ctx.fillText(text, x, y);
+        // letra blanca con contorno del verde de su rama, sobre un halo oscuro que la separa de la lluvia
+        const tone = n === hover || n === selected ? C.sodium : C.title[n.branch] || C.glow;
+        ctx.lineWidth = 7; ctx.strokeStyle = rgba(C.sky, .9); ctx.strokeText(text, x, y);
+        ctx.lineWidth = n.type === 'leaf' ? 1.3 : 1.8; ctx.strokeStyle = tone; ctx.strokeText(text, x, y);
+        ctx.fillStyle = C.label; ctx.fillText(text, x, y);
       }
       ctx.globalAlpha = 1;
     }
