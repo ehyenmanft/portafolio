@@ -9,7 +9,7 @@
     about: 'Sobre mí', projects: 'Proyectos', langs: 'Lenguajes',
     skills: 'Habilidades', career: 'Experiencia', social: 'Contacto',
   };
-  const PHOTO_R = 46;     // radio del retrato de origen (unidades de mundo)
+  const PHOTO_R = 56;     // radio del retrato de origen (unidades de mundo)
   const HUB_DIST = 430;   // distancia retrato → rama
 
   // los colores del canvas salen de los mismos tokens que el CSS
@@ -19,6 +19,9 @@
     for (const k of ['sky', 'sky-low', 'cloud', 'ridge', 'sea', 'ink', 'mist', 'bolt', 'glow', 'sodium']) {
       C[k.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = cs.getPropertyValue(`--color-${k}`).trim();
     }
+    C.title = {};
+    for (const b of Object.keys(BRANCH_LABEL)) C.title[b] = cs.getPropertyValue(`--title-${b}-2`).trim();
+    C.display = cs.getPropertyValue('--font-display').trim();
   }
 
   // ---------- utilidades ----------
@@ -42,7 +45,7 @@
   // resumen de una línea para la lista: primera frase, cortada en una palabra si es larga
   function brief(s, max = 78) {
     if (!s) return '';
-    let t = (s.match(/^.*?[.:](\s|$)/) || [s])[0].replace(/[:.]\s*$/, '').trim();
+    let t = (s.match(/^.*?[.!?](\s|$)/) || [s])[0].replace(/[.]\s*$/, '').trim();
     if (t.length > max) t = t.slice(0, t.lastIndexOf(' ', max)).replace(/[,;]$/, '') + '…';
     return t;
   }
@@ -355,15 +358,15 @@
     // el margen va en píxeles de pantalla porque las etiquetas no escalan con el zoom
     function fitCam(points) {
       const A = viewArea();
-      const padX = stacked() ? 96 : 130, padY = 30;
+      const padX = stacked() ? 96 : 150, padY = 24;
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
-      const k = clamp(Math.min((A.w - padX * 2) / (x1 - x0 || 1), (A.h - padY * 2) / (y1 - y0 || 1)), .16, 1.5);
+      const k = clamp(Math.min((A.w - padX * 2) / (x1 - x0 || 1), (A.h - padY * 2) / (y1 - y0 || 1)), .18, 1.8);
       return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k };
     }
     function camFor(i) {
       const n = graph.hubs.length;
-      if (i <= 0) return { x: 0, y: 0, k: stacked() ? 1.1 : 1.45 };
+      if (i <= 0) return { x: 0, y: 0, k: stacked() ? 1.15 : 1.6 };
       if (i > n) return fitCam(graph.nodes);
       const pts = [graph.root];
       (function walk(x) { pts.push(x); x.children.forEach(walk); })(graph.hubs[i - 1]);
@@ -386,7 +389,7 @@
       const i0 = Math.min(Math.floor(u), n + 1), f = smooth(clamp((u - i0 - .55) / .45));
       const c0 = camFor(i0), c1 = camFor(Math.min(i0 + 1, n + 1));
       const target = { x: lerp(c0.x, c1.x, f), y: lerp(c0.y, c1.y, f), k: lerp(c0.k, c1.k, f) };
-      const reveal = graph.hubs.map((_, i) => clamp((u - (i + 1) + .15) / .6));
+      const reveal = graph.hubs.map((_, i) => clamp((u - (i + 1) + .12) / .8));
       crossReveal = clamp((u - (n + 1) + .2) / .4);
       const active = Math.floor(u);
       activeBranch = active >= 1 && active <= n ? graph.hubs[active - 1].branch : null;
@@ -498,7 +501,7 @@
       const pts = e.path, upto = e.grow * (pts.length - 1), k = cam.k;
       const base = e.kind === 'cross' ? .14 : (activeBranch && e.b.branch !== activeBranch ? .2 : .36);
       const I = base * alphaMul + e.strike * (.75 + .25 * Math.random());
-      const passes = e.kind === 'cross' ? [[3, .1], [1, .45]] : [[14, .04], [6, .12], [2.2, .42]];
+      const passes = e.kind === 'cross' ? [[5, .1], [1.8, .45]] : [[30, .045], [13, .13], [5, .42]];
       for (const [w, a] of passes) {
         strokePts(pts, upto);
         ctx.strokeStyle = rgba(C.glow, clamp(a * I * 1.6));
@@ -507,21 +510,21 @@
       }
       strokePts(pts, upto);
       ctx.strokeStyle = rgba(C.bolt, clamp(.5 * I + e.strike * .7));
-      ctx.lineWidth = (e.strike > .05 ? 1.5 : .8) / k;
+      ctx.lineWidth = (e.strike > .05 ? 2.8 : 1.7) / k;
       ctx.stroke();
       if (e.strike > .05 || e.grow < 1) {
         for (const fk of e.forks) {
           if (e.grow < fk.at) continue;
           strokePts(fk.pts, clamp((e.grow - fk.at) / (1 - fk.at)) * (fk.pts.length - 1));
           ctx.strokeStyle = rgba(C.bolt, clamp(.2 + e.strike * .6) * (e.grow < 1 ? 1 : e.strike));
-          ctx.lineWidth = .9 / k;
+          ctx.lineWidth = 1.6 / k;
           ctx.stroke();
         }
       }
       // líder escalonado: la punta incandescente avanza antes que el canal
       if (e.grow < 1) {
         const [x, y] = pts[Math.min(Math.floor(upto), pts.length - 1)];
-        const r = 18 / k;
+        const r = 26 / k;
         const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
         gr.addColorStop(0, rgba(C.bolt, .95)); gr.addColorStop(.3, rgba(C.glow, .5)); gr.addColorStop(1, rgba(C.glow, 0));
         ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
@@ -529,7 +532,7 @@
     }
 
     // los puntos tienen tamaño casi fijo en pantalla: la jerarquía la marcan el tamaño y el anillo
-    const dotSize = n => (n.type === 'hub' ? 6 : n.type === 'sub' ? 4.5 : n.big ? 4.5 : 3.4) * clamp(cam.k * 1.6, .6, 1);
+    const dotSize = n => (n.type === 'hub' ? 9 : n.type === 'sub' ? 6.5 : n.big ? 6.5 : 5) * clamp(cam.k * 1.6, .65, 1);
     function drawNode(n) {
       if (n.pop <= .01) return;
       const k = cam.k, p = n.pop;
@@ -542,8 +545,8 @@
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(n.x, n.y, r * 3.2, 0, 6.283); ctx.fill();
       ctx.fillStyle = C.bolt; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
       if (n.type !== 'leaf' || hot) {
-        ctx.strokeStyle = hot ? C.sodium : rgba(C.bolt, .45);
-        ctx.lineWidth = (hot ? 1.6 : 1) / k;
+        ctx.strokeStyle = hot ? C.sodium : n.type === 'hub' ? C.title[n.branch] : rgba(C.bolt, .45);
+        ctx.lineWidth = (hot ? 2 : n.type === 'hub' ? 1.8 : 1.2) / k;
         ctx.beginPath(); ctx.arc(n.x, n.y, r + (n.type === 'hub' ? 7 : 5) / k, 0, 6.283); ctx.stroke();
       }
       ctx.globalAlpha = 1;
@@ -600,15 +603,15 @@
         // rama activa: nombre bajo su punto; resto de ramas: en la punta exterior, fuera de sus hojas
         const tip = n.type === 'hub' && n.branch !== activeBranch && n.children.length;
         const [sx, sy] = tip ? toScreen(n.x + c * n.reach, n.y + s * n.reach) : toScreen(n.x, n.y);
-        const rr = tip ? 14 : dotSize(n) + (n.type === 'hub' ? 16 : 10);
+        const rr = tip ? 16 : dotSize(n) + (n.type === 'hub' ? 18 : 12);
         let x = sx, y = sy;
         if (n.type === 'hub' && !tip) { y = sy + rr + 6; ctx.textAlign = 'center'; }
         else if (Math.abs(c) > .35) { x = sx + Math.sign(c) * rr; ctx.textAlign = c > 0 ? 'left' : 'right'; }
         else { y = sy + Math.sign(s || 1) * (rr + 4); ctx.textAlign = 'center'; }
-        ctx.font = n.type === 'hub' ? `600 ${m ? 14 : 16}px ${face}`
-          : n.type === 'sub' ? `500 ${m ? 12.5 : 14}px ${face}`
-          : `400 ${m ? 12 : 13.5}px ${face}`;
-        const w = ctx.measureText(n.label).width, lh = m ? 15 : 17;
+        ctx.font = n.type === 'hub' ? `600 ${m ? 16 : 20}px ${C.display}`
+          : n.type === 'sub' ? `600 ${m ? 13 : 15}px ${C.display}`
+          : `500 ${m ? 13 : 15}px ${face}`;
+        const w = ctx.measureText(n.label).width, lh = m ? 17 : n.type === 'hub' ? 24 : 19;
         const left = () => ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - w : x - w / 2;
         const hits = () => placed.some(r => left() < r.x + r.w && left() + w > r.x && y - lh / 2 < r.y + r.h && y + lh / 2 > r.y);
         let tries = 0;
@@ -618,7 +621,7 @@
         ctx.globalAlpha = n.pop * (hover && !near ? .3 : 1);
         ctx.strokeStyle = rgba(C.sky, .85); ctx.lineWidth = 4;
         ctx.strokeText(n.label, x, y);
-        ctx.fillStyle = n === hover || n === selected ? C.sodium : n.type === 'leaf' ? C.mist : C.ink;
+        ctx.fillStyle = n === hover || n === selected ? C.sodium : n.type === 'leaf' ? C.ink : C.title[n.branch] || C.ink;
         ctx.fillText(n.label, x, y);
       }
       ctx.globalAlpha = 1;
@@ -777,7 +780,7 @@
             <button class="btn quiet" type="button" data-cv>Ver CV</button>
           </div>
         </div></section>`];
-      graph.hubs.forEach((h, i) => html.push(`<section class="chapter" data-i="${i + 1}" id="${h.branch}"><div class="copy">${body[h.branch](h)}</div></section>`));
+      graph.hubs.forEach((h, i) => html.push(`<section class="chapter" data-i="${i + 1}" data-branch="${h.branch}" id="${h.branch}"><div class="copy">${body[h.branch](h)}</div></section>`));
       html.push(`
         <section class="chapter final" data-i="${graph.hubs.length + 1}"><div class="copy">
           <h2>Así se conecta todo</h2>
@@ -790,6 +793,7 @@
         </div></section>`);
       $('#story').innerHTML = html.join('');
       this.sections = [...document.querySelectorAll('.chapter')];
+      reveal(this.sections);
       this.hubIndex = Object.fromEntries(graph.hubs.map((h, i) => [h.branch, i + 1]));
 
       const root = $('#story');
@@ -826,6 +830,26 @@
       if (s) scrollTo({ top: s.top + (i === 0 ? 0 : s.h * .25), behavior: REDUCED ? 'auto' : 'smooth' });
     },
   };
+
+  // ---------- revelado al hacer scroll (GSAP ScrollTrigger) ----------
+  // cada bloque llega desde un lado, de desenfocado a nítido, descubierto por un gradiente difuso
+  function reveal(sections) {
+    if (!window.gsap || !window.ScrollTrigger) return; // sin GSAP el texto se ve tal cual
+    gsap.registerPlugin(ScrollTrigger);
+    const mm = gsap.matchMedia();
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      sections.forEach((sec, i) => {
+        const fromRight = i % 2 === 1;
+        const parts = sec.querySelectorAll('.copy > h1, .copy > h2, .copy > p, .copy > h3, .copy > .actions, .copy > .inline > li, .copy > .items > li');
+        parts.forEach(p => p.classList.add('rv', ...(fromRight ? ['from-right'] : [])));
+        const from = { opacity: 0, x: fromRight ? 90 : -90, filter: 'blur(18px)', '--m': '-35%' };
+        const to = { opacity: 1, x: 0, filter: 'blur(0px)', '--m': '100%', ease: 'power2.out', stagger: .06 };
+        if (i === 0) gsap.fromTo(parts, from, { ...to, duration: 1.3, delay: .2 });
+        else gsap.fromTo(parts, from, { ...to, scrollTrigger: { trigger: sec, start: 'top 88%', end: 'top 30%', scrub: .8 } });
+      });
+      return () => sections.forEach(sec => sec.querySelectorAll('.rv').forEach(p => p.classList.remove('rv', 'from-right')));
+    });
+  }
 
   // ---------- panel de detalle ----------
   let scene, GRAPH, PROFILE, GH;
