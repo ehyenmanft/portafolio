@@ -1,8 +1,8 @@
 # Portafolio · James Aranda (@ehyenma.nft)
 
-Portafolio y CV interactivo: una **joya central** (con mi foto engastada) de la que, al ir deslizando, nacen como **rayos animados** las ramas: Sobre mí, Proyectos, Lenguajes, Habilidades, Experiencia y Redes. Cada capítulo del scroll enciende una rama y la cámara viaja hasta ella; al final se ve toda la red, con las conexiones cruzadas entre proyectos, lenguajes y habilidades.
+Portafolio y CV interactivo: una noche de tormenta frente a La Guaira, con el Ávila detrás y las luces de la costa en el mar. Al ir deslizando, de mi foto nacen **rayos** hacia cada rama (Sobre mí, Proyectos, Lenguajes, Habilidades, Experiencia y Contacto); cada descarga ilumina las nubes y se refleja en el agua. Al final se ve toda la red, con las conexiones entre proyectos, lenguajes y habilidades.
 
-Sitio estático (HTML + CSS + JS con Canvas 2D), sin dependencias ni compilación. Es responsive: en móvil y tableta vertical la red ocupa la parte de arriba y el texto sube por debajo.
+Sitio estático (HTML + CSS + JS con Canvas 2D), sin dependencias ni compilación. Responsive: en móvil y tableta vertical la escena ocupa la parte de arriba y el texto sube por debajo. Respeta "reducir movimiento".
 
 ## De dónde salen los datos
 
@@ -32,7 +32,8 @@ Todo está en `data/profile.json`:
 
 - `skills`: grupos de habilidades; `repos` crea las sinapsis hacia esos proyectos.
 - `featuredRepos`: proyectos que salen primero y más grandes. `hiddenRepos`: repos que no se muestran.
-- `repoDescriptions`: descripción para repos que no tienen una en GitHub.
+- `repoDescriptions`: descripción que reemplaza la de GitHub. `repoNames`: nombre con el que se muestra cada repo.
+- `extraProjects`: proyectos que no están en un repo público (por ejemplo BaratoPrimo o los bots de Telegram), con `name`, `title`, `description`, `language` y `homepage`.
 - `avatar`: deja vacío para usar la foto de GitHub, o pon la URL de otra imagen.
 
 Los repos nuevos que subas a GitHub aparecen solos.

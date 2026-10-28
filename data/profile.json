@@ -1,63 +1,247 @@
 {
   "name": "James Aranda",
   "handle": "@ehyenma.nft",
-  "headline": "Desarrollador de software · Creador digital · Web3",
+  "headline": "Desarrollador de software y creador digital",
   "location": "La Guaira, Venezuela",
   "avatar": "",
   "github": "ehyenmanft",
-  "bio": "Apasionado por los videojuegos, la programación y las criptomonedas. Construyo herramientas útiles de punta a punta: editores de vídeo retro, monitores sísmicos y climáticos en tiempo real, conversores de documentos con OCR y utilidades de escritorio para Windows.",
-  "interests": ["Videojuegos", "Programación", "Criptomonedas y NFT", "Datos abiertos"],
-
-  "links": [
-    { "label": "GitHub", "url": "https://github.com/ehyenmanft" },
-    { "label": "LinkedIn", "url": "" },
-    { "label": "Instagram", "url": "https://www.instagram.com/ehyenma.nft/" },
-    { "label": "X / Twitter", "url": "https://x.com/slayerjamez" },
-    { "label": "Email", "url": "mailto:ehyenma.nft@gmail.com" }
+  "bio": "Me apasionan los videojuegos, la programación y las criptomonedas. Construyo herramientas completas que resuelven cosas concretas: un editor de vídeo retro, monitores de sismos y ciclones en tiempo real, un conversor de PDF con OCR y utilidades de escritorio para Windows.",
+  "interests": [
+    "Videojuegos",
+    "Programación",
+    "Criptomonedas y NFT",
+    "Datos abiertos"
   ],
-
-  "featuredRepos": ["monitor-sismico", "kidcut", "pdfamd", "mobiforce-now"],
-  "hiddenRepos": ["ehyenmanft.github.io", "portafolio"],
-  "repoDescriptions": {
-    "kidcut": "Editor de vídeo retro 8-bit para Windows y web, con grabador de pantalla, ecualizador, conversor y voz con anti-acople (KidNoez)."
+  "links": [
+    {
+      "label": "GitHub",
+      "url": "https://github.com/ehyenmanft"
+    },
+    {
+      "label": "LinkedIn",
+      "url": "https://ve.linkedin.com/in/ehyenmanft"
+    },
+    {
+      "label": "Instagram",
+      "url": "https://www.instagram.com/ehyenma.nft/"
+    },
+    {
+      "label": "X / Twitter",
+      "url": "https://x.com/slayerjamez"
+    },
+    {
+      "label": "Email",
+      "url": "mailto:ehyenma.nft@gmail.com"
+    }
+  ],
+  "featuredRepos": [
+    "baratoprimo",
+    "traductor",
+    "monitor-sismico",
+    "kidcut"
+  ],
+  "hiddenRepos": [
+    "ehyenmanft.github.io",
+    "portafolio",
+    "formulario-bilingue",
+    "amazona-fitness-dashboard"
+  ],
+  "repoNames": {
+    "monitor-sismico": "Monitor sísmico",
+    "kidcut": "KidCut",
+    "pdfamd": "PDFaMD",
+    "mobiforce-now": "MobiForce Now",
+    "escaner-redes": "Escáner de redes",
+    "ciclon-monitor": "Monitor de ciclones",
+    "traductor": "Traductor de voz en vivo"
   },
-
+  "repoDescriptions": {
+    "kidcut": "Editor de vídeo retro 8-bit para Windows y web, con grabador de pantalla, ecualizador, conversor y voz con anti-acople (KidNoez).",
+    "traductor": "Traductor de voz en tiempo real para videojuegos y aplicaciones de PC en Windows. Captura el audio del juego o de Discord, lo transcribe en vivo con Deepgram nova-3, Groq o faster-whisper local, lo traduce al instante y muestra los subtítulos en un overlay translúcido estilo HUD, con modo click-through, atajos globales, historial de sesiones y una variante de cliente ligero en AWS."
+  },
   "skills": [
     {
       "group": "Web",
       "items": [
-        { "name": "JavaScript", "repos": ["kidcut", "mobiforce-now", "formulario-bilingue", "amazona-fitness-dashboard"] },
-        { "name": "HTML y CSS", "repos": ["monitor-sismico", "ciclon-monitor"] },
-        { "name": "PWA", "repos": ["monitor-sismico", "mobiforce-now"] },
-        { "name": "Three.js / 3D", "repos": ["monitor-sismico"] },
-        { "name": "Dashboards", "repos": ["amazona-fitness-dashboard", "ciclon-monitor", "monitor-sismico"] }
+        {
+          "name": "JavaScript",
+          "repos": [
+            "kidcut",
+            "mobiforce-now",
+            "baratoprimo"
+          ]
+        },
+        {
+          "name": "HTML y CSS",
+          "repos": [
+            "monitor-sismico",
+            "ciclon-monitor"
+          ]
+        },
+        {
+          "name": "PWA",
+          "repos": [
+            "monitor-sismico",
+            "mobiforce-now",
+            "baratoprimo"
+          ]
+        },
+        {
+          "name": "Three.js / 3D",
+          "repos": [
+            "monitor-sismico"
+          ]
+        },
+        {
+          "name": "Dashboards",
+          "repos": [
+            "ciclon-monitor",
+            "monitor-sismico",
+            "baratoprimo"
+          ]
+        },
+        {
+          "name": "Supabase y PostgreSQL",
+          "repos": [
+            "baratoprimo"
+          ]
+        },
+        {
+          "name": "Mapas y geolocalización",
+          "repos": [
+            "baratoprimo",
+            "monitor-sismico"
+          ]
+        }
       ]
     },
     {
       "group": "Escritorio",
       "items": [
-        { "name": "Electron + Vite", "repos": ["kidcut"] },
-        { "name": "Python + tkinter", "repos": ["escaner-redes", "pdfamd", "traductor"] },
-        { "name": "Apps .exe para Windows", "repos": ["kidcut", "pdfamd", "escaner-redes"] }
+        {
+          "name": "Electron + Vite",
+          "repos": [
+            "kidcut"
+          ]
+        },
+        {
+          "name": "Python (tkinter y PyQt6)",
+          "repos": [
+            "escaner-redes",
+            "pdfamd",
+            "traductor"
+          ]
+        },
+        {
+          "name": "Apps .exe para Windows",
+          "repos": [
+            "kidcut",
+            "pdfamd",
+            "escaner-redes"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Inteligencia artificial",
+      "items": [
+        {
+          "name": "Bots de Telegram con IA",
+          "repos": [
+            "bots-telegram-ia"
+          ]
+        },
+        {
+          "name": "Voz a texto en tiempo real",
+          "repos": [
+            "traductor"
+          ]
+        },
+        {
+          "name": "Traducción automática",
+          "repos": [
+            "traductor"
+          ]
+        },
+        {
+          "name": "OCR",
+          "repos": [
+            "pdfamd"
+          ]
+        }
       ]
     },
     {
       "group": "Datos y medios",
       "items": [
-        { "name": "Vídeo y audio", "repos": ["kidcut"] },
-        { "name": "OCR y documentos", "repos": ["pdfamd"] },
-        { "name": "APIs de datos abiertos", "repos": ["monitor-sismico", "ciclon-monitor"] },
-        { "name": "Redes locales", "repos": ["escaner-redes"] }
+        {
+          "name": "Vídeo y audio",
+          "repos": [
+            "kidcut",
+            "traductor"
+          ]
+        },
+        {
+          "name": "APIs de datos abiertos",
+          "repos": [
+            "monitor-sismico",
+            "ciclon-monitor"
+          ]
+        },
+        {
+          "name": "Redes locales",
+          "repos": [
+            "escaner-redes"
+          ]
+        },
+        {
+          "name": "Documentos PDF",
+          "repos": [
+            "pdfamd"
+          ]
+        }
       ]
     },
     {
       "group": "Web3",
       "items": [
-        { "name": "Cripto y NFT", "repos": [] }
+        {
+          "name": "Cripto y NFT",
+          "repos": []
+        }
       ]
     }
   ],
-
   "experience": [],
-  "education": []
+  "education": [],
+  "extraProjects": [
+    {
+      "name": "baratoprimo",
+      "title": "BaratoPrimo",
+      "language": "JavaScript",
+      "url": "https://baratoprimo.ehyenma-nft.workers.dev",
+      "homepage": "https://baratoprimo.ehyenma-nft.workers.dev",
+      "description": "Ecosistema digital venezolano que une punto de venta e inventario para comercios con un directorio público y un radar de precios geolocalizado en tiempo real. Bodegas, farmacias y comercios gestionan ventas con la tasa oficial del BCV sincronizada a diario, inventario multimoneda con kárdex, facturación con IVA y QR, tickets de 58 y 80 mm, roles y horarios estilo WhatsApp Business; los ciudadanos comparan precios en divisas y bolívares en un mapa con ruta de \"cómo llegar\" y piden por WhatsApp. HTML, CSS y JavaScript puros, PWA instalable y Supabase.",
+      "topics": [
+        "pos",
+        "inventario",
+        "bcv",
+        "pwa",
+        "supabase",
+        "venezuela"
+      ]
+    },
+    {
+      "name": "bots-telegram-ia",
+      "title": "Bots de Telegram con IA",
+      "language": "",
+      "url": "",
+      "homepage": "",
+      "description": "Elaboración de bots de Telegram con inteligencia artificial, hechos a medida.",
+      "topics": [
+        "telegram",
+        "ia"
+      ]
+    }
+  ]
 }

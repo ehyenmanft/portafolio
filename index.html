@@ -3,46 +3,52 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>James Aranda · Portafolio</title>
-  <meta name="description" content="Portafolio y CV interactivo de James Aranda (@ehyenma.nft): una joya central de la que nacen, como rayos, proyectos, habilidades y redes.">
-  <meta property="og:title" content="James Aranda · Portafolio">
-  <meta property="og:description" content="Proyectos, habilidades y CV que se despliegan como rayos desde una joya central.">
+  <title>James Aranda, desarrollador de software</title>
+  <meta name="description" content="Portafolio de James Aranda (@ehyenma.nft), desarrollador de software en La Guaira, Venezuela: proyectos, habilidades y contacto.">
+  <meta property="og:title" content="James Aranda, desarrollador de software">
+  <meta property="og:description" content="Herramientas que resuelven cosas concretas, hechas desde La Guaira.">
   <meta property="og:image" content="https://avatars.githubusercontent.com/u/116576579?v=4">
-  <meta name="theme-color" content="#06060b">
-  <link rel="icon" href="assets/favicon.svg?v=3" type="image/svg+xml">
+  <meta name="theme-color" content="#0a0e18">
+  <link rel="icon" href="assets/favicon.svg?v=5" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;700&family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500&family=Schibsted+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=5">
 </head>
 <body>
+  <a class="skip" href="#story">Saltar al contenido</a>
   <canvas id="sky" aria-hidden="true"></canvas>
 
   <header class="topbar">
-    <a class="brand" href="#top" id="brand">
-      <svg class="brand-gem" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" /><path d="M2 9h20M9 3 7.5 9 12 21M15 3l1.5 6L12 21" /></svg>
-      <span id="brand-name">James Aranda</span>
-      <small id="brand-handle">@ehyenma.nft</small>
-    </a>
-    <nav class="views" aria-label="Vista">
-      <button type="button" data-view="net" class="active" aria-pressed="true">Red</button>
-      <button type="button" data-view="cv" aria-pressed="false">CV</button>
+    <a class="wordmark" href="#top" id="brand">James Aranda</a>
+    <nav class="nav" aria-label="Secciones">
+      <a href="#projects" data-jump="projects">Proyectos</a>
+      <a href="#skills" data-jump="skills">Habilidades</a>
+      <a href="#social" data-jump="social">Contacto</a>
+      <button type="button" id="cv-toggle" aria-pressed="false">CV</button>
     </nav>
   </header>
 
   <main id="top">
-    <div id="story"></div>
-    <nav id="dots" aria-label="Capítulos"></nav>
+    <div id="story">
+      <noscript>
+        <section class="chapter"><div class="copy">
+          <h1>James Aranda</h1>
+          <p class="lede">Hago herramientas que resuelven cosas concretas, desde La Guaira.</p>
+          <p>Mis proyectos están en <a href="https://github.com/ehyenmanft">github.com/ehyenmanft</a>. Escríbeme a <a href="mailto:ehyenma.nft@gmail.com">ehyenma.nft@gmail.com</a>.</p>
+        </div></section>
+      </noscript>
+    </div>
     <section id="cv" hidden></section>
   </main>
 
   <aside id="panel" aria-hidden="true" aria-live="polite">
-    <button type="button" class="close" aria-label="Cerrar">&times;</button>
+    <button type="button" class="close" aria-label="Cerrar detalle">&times;</button>
     <div class="panel-body"></div>
   </aside>
 
-  <div id="loader"><svg class="brand-gem big" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" /><path d="M2 9h20M9 3 7.5 9 12 21M15 3l1.5 6L12 21" /></svg>Tallando la joya…</div>
+  <div id="loader" role="status">Cargando proyectos desde GitHub</div>
 
-  <script src="assets/app.js?v=3"></script>
+  <script src="assets/app.js?v=5"></script>
 </body>
 </html>

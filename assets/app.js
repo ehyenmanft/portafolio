@@ -5,16 +5,21 @@
   const CACHE_TTL = 60 * 60 * 1000; // 1 h: la API pública de GitHub permite 60 peticiones/hora
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const BRANCHES = {
-    about:    { label: 'Sobre mí',    color: '#ff7ad9' },
-    projects: { label: 'Proyectos',   color: '#7df9ff' },
-    langs:    { label: 'Lenguajes',   color: '#b69cff' },
-    skills:   { label: 'Habilidades', color: '#8dffb0' },
-    career:   { label: 'Experiencia', color: '#ffd27a' },
-    social:   { label: 'Redes',       color: '#ff8f6b' },
+  const BRANCH_LABEL = {
+    about: 'Sobre mí', projects: 'Proyectos', langs: 'Lenguajes',
+    skills: 'Habilidades', career: 'Experiencia', social: 'Contacto',
   };
-  const GEM_R = 64;       // radio de la joya (unidades de mundo)
-  const HUB_DIST = 430;   // distancia joya → rama
+  const PHOTO_R = 46;     // radio del retrato de origen (unidades de mundo)
+  const HUB_DIST = 430;   // distancia retrato → rama
+
+  // los colores del canvas salen de los mismos tokens que el CSS
+  const C = {};
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ['sky', 'sky-low', 'cloud', 'ridge', 'sea', 'ink', 'mist', 'bolt', 'glow', 'sodium']) {
+      C[k.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = cs.getPropertyValue(`--color-${k}`).trim();
+    }
+  }
 
   // ---------- utilidades ----------
   const $ = s => document.querySelector(s);
@@ -34,10 +39,19 @@
     return 'justo ahora';
   }
   const prettyName = n => n.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const hexA = (hex, a) => {
+  // resumen de una línea para la lista: primera frase, cortada en una palabra si es larga
+  function brief(s, max = 78) {
+    if (!s) return '';
+    let t = (s.match(/^.*?[.:](\s|$)/) || [s])[0].replace(/[:.]\s*$/, '').trim();
+    if (t.length > max) t = t.slice(0, t.lastIndexOf(' ', max)).replace(/[,;]$/, '') + '…';
+    return t;
+  }
+  const rgba = (hex, a) => {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
   };
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const bare = url => url.replace(/^mailto:|^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
 
   async function getJSON(url) {
     const r = await fetch(url);
@@ -82,30 +96,31 @@
     };
     const cross = (a, b) => { if (byId.has(a) && byId.has(b)) links.push({ a: byId.get(a), b: byId.get(b), kind: 'cross' }); };
 
-    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.name, r: GEM_R, data: { kind: 'root' } });
-    const hub = key => add({ id: `hub:${key}`, type: 'hub', depth: 1, branch: key, label: BRANCHES[key].label, r: 15, data: { kind: 'hub' } }, root);
-    const child = (parent, n) => add({ type: 'leaf', depth: parent.depth + 1, branch: parent.branch, r: 6, ...n }, parent);
+    const root = add({ id: 'root', type: 'root', depth: 0, branch: 'root', label: P.name, data: { kind: 'root' } });
+    const hub = key => add({ id: `hub:${key}`, type: 'hub', depth: 1, branch: key, label: BRANCH_LABEL[key], data: { kind: 'hub' } }, root);
+    const child = (parent, n) => add({ type: 'leaf', depth: parent.depth + 1, branch: parent.branch, ...n }, parent);
 
     const about = hub('about');
-    if (P.location) child(about, { id: 'about:loc', label: P.location, data: { kind: 'text', title: 'Ubicación', text: P.location } });
-    for (const i of P.interests || []) child(about, { id: `about:${i}`, label: i, data: { kind: 'text', title: i, text: 'Interés personal' } });
+    if (P.location) child(about, { id: 'about:loc', label: P.location, data: { kind: 'text', title: P.location, text: 'Donde vivo y trabajo.' } });
+    for (const i of P.interests || []) child(about, { id: `about:${i}`, label: i, data: { kind: 'text', title: i, text: 'Algo que me interesa, dentro y fuera del código.' } });
 
+    // repos públicos de GitHub más los proyectos que no viven en un repo público
     const hidden = new Set((P.hiddenRepos || []).map(s => s.toLowerCase()));
     const featured = (P.featuredRepos || []).map(s => s.toLowerCase());
-    const notes = P.repoDescriptions || {};
-    const repos = G.repos
-      .map(r => r.description || !notes[r.name] ? r : { ...r, description: notes[r.name] })
+    const notes = P.repoDescriptions || {}, names = P.repoNames || {};
+    const extra = (P.extraProjects || []).map(x => ({ stars: 0, fork: false, archived: false, topics: [], extra: true, ...x }));
+    const repos = [...G.repos.filter(r => !extra.some(x => x.name === r.name)), ...extra]
+      .map(r => ({ ...r, description: notes[r.name] || r.description || '', title: r.title || names[r.name] || prettyName(r.name) }))
       .filter(r => !r.fork && !r.archived && !hidden.has(r.name.toLowerCase()))
       .sort((a, b) => {
         const fa = featured.indexOf(a.name.toLowerCase()), fb = featured.indexOf(b.name.toLowerCase());
         if ((fa < 0) !== (fb < 0)) return fa < 0 ? 1 : -1;
         if (fa >= 0) return fa - fb;
-        return new Date(b.pushed_at) - new Date(a.pushed_at);
+        return new Date(b.pushed_at || 0) - new Date(a.pushed_at || 0);
       });
     const projects = hub('projects');
     for (const r of repos) {
-      const isFeat = featured.includes(r.name.toLowerCase());
-      child(projects, { id: `repo:${r.name}`, label: prettyName(r.name), r: 6 + Math.min(r.stars, 6) + (isFeat ? 3 : 0), data: { kind: 'repo', repo: r, featured: isFeat } });
+      child(projects, { id: `repo:${r.name}`, label: r.title, big: featured.includes(r.name.toLowerCase()), data: { kind: 'repo', repo: r } });
     }
 
     const langCount = new Map();
@@ -113,7 +128,7 @@
     if (langCount.size) {
       const langs = hub('langs');
       for (const [lang, n] of [...langCount].sort((a, b) => b[1] - a[1])) {
-        child(langs, { id: `lang:${lang}`, label: lang, r: 5 + n * 1.5, data: { kind: 'lang', lang, count: n } });
+        child(langs, { id: `lang:${lang}`, label: lang, big: n > 2, data: { kind: 'lang', lang, count: n } });
       }
       for (const r of repos) if (r.language) cross(`repo:${r.name}`, `lang:${r.language}`);
     }
@@ -121,10 +136,10 @@
     if (P.skills?.length) {
       const skills = hub('skills');
       for (const g of P.skills) {
-        const sub = child(skills, { id: `skg:${g.group}`, type: 'sub', label: g.group, r: 10, data: { kind: 'group', group: g } });
+        const sub = child(skills, { id: `skg:${g.group}`, type: 'sub', label: g.group, data: { kind: 'group', group: g } });
         for (const s of g.items) {
           const live = (s.repos || []).filter(n => byId.has(`repo:${n}`));
-          child(sub, { id: `sk:${g.group}:${s.name}`, label: s.name, r: 5 + live.length, data: { kind: 'skill', skill: s, group: g.group, repos: live } });
+          child(sub, { id: `sk:${g.group}:${s.name}`, label: s.name, data: { kind: 'skill', skill: s, group: g.group, repos: live } });
           for (const n of live) cross(`sk:${g.group}:${s.name}`, `repo:${n}`);
         }
       }
@@ -133,21 +148,21 @@
     const linkedin = (P.links || []).find(l => /linkedin/i.test(l.label) && l.url);
     if (P.experience?.length || P.education?.length || linkedin) {
       const career = hub('career');
-      (P.experience || []).forEach((j, i) => child(career, { id: `job:${i}`, label: j.role, r: 8, data: { kind: 'job', job: j } }));
-      (P.education || []).forEach((j, i) => child(career, { id: `edu:${i}`, label: j.title, r: 7, data: { kind: 'job', job: j, edu: true } }));
-      if (linkedin) child(career, { id: 'career:linkedin', label: 'Perfil de LinkedIn', r: 7, data: { kind: 'link', link: linkedin } });
+      (P.experience || []).forEach((j, i) => child(career, { id: `job:${i}`, label: j.role, data: { kind: 'job', job: j } }));
+      (P.education || []).forEach((j, i) => child(career, { id: `edu:${i}`, label: j.title, data: { kind: 'job', job: j, edu: true } }));
+      if (linkedin) child(career, { id: 'career:linkedin', label: 'Perfil de LinkedIn', data: { kind: 'link', link: linkedin } });
     }
 
     const socialLinks = (P.links || []).filter(l => l.url);
     if (socialLinks.length) {
       const social = hub('social');
-      for (const l of socialLinks) child(social, { id: `link:${l.label}`, label: l.label, r: 7, data: { kind: 'link', link: l } });
+      for (const l of socialLinks) child(social, { id: `link:${l.label}`, label: l.label, data: { kind: 'link', link: l } });
     }
 
     return { nodes, links, byId, root, repos, hubs: root.children };
   }
 
-  // ---------- disposición: cada rama se abre en abanico desde la joya ----------
+  // ---------- disposición: cada rama se abre en abanico desde el retrato ----------
   function layout(graph) {
     const n = graph.hubs.length;
     graph.root.x = 0; graph.root.y = 0;
@@ -160,15 +175,20 @@
       const kids = p.children, k = kids.length;
       if (!k) return;
       const hasSubs = kids.some(c => c.type === 'sub');
-      const span = level === 1 ? Math.min(2.4, .36 * k) : Math.min(1.5, .42 * k);
+      const span = level === 1 ? Math.min(2.8, .36 * k) : Math.min(1.7, .5 * k);
       const rows = k > 7 ? 3 : k > 3 ? 2 : 1;
-      const base = hasSubs ? 200 : level === 1 ? 165 : 115;
+      const base = hasSubs ? 250 : level === 1 ? 165 : 140;
       kids.forEach((c, j) => {
         const ca = a + (k === 1 ? 0 : (j / (k - 1) - .5) * span);
-        const d = base + (j % rows) * (level === 1 ? 62 : 48);
+        const d = base + (j % rows) * (level === 1 ? 74 : 56);
         c.angle = ca; c.x = p.x + Math.cos(ca) * d; c.y = p.y + Math.sin(ca) * d;
         fan(c, ca, level + 1);
       });
+    }
+    // alcance de cada rama: su nombre se coloca más allá de la hoja más lejana
+    for (const h of graph.hubs) {
+      h.reach = 0;
+      (function walk(x) { x.children.forEach(c => { h.reach = Math.max(h.reach, Math.hypot(c.x - h.x, c.y - h.y)); walk(c); }); })(h);
     }
   }
 
@@ -195,10 +215,25 @@
       const at = .2 + Math.random() * .6, idx = Math.floor(at * (path.length - 1));
       const [x, y] = path[idx], [nx, ny] = path[Math.min(idx + 4, path.length - 1)];
       const a = Math.atan2(ny - y, nx - x) + (Math.random() < .5 ? -1 : 1) * (.4 + Math.random() * .6);
-      const len = 30 + Math.random() * 60;
+      const len = 30 + Math.random() * 70;
       forks.push({ at, pts: boltPath(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, .35, 4) });
     }
     return forks;
+  }
+
+  // ruido de valor suave para nubes y montaña
+  function noise2(seed = Math.random() * 1e4) {
+    const R = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453; return s - Math.floor(s); };
+    return (x, y) => {
+      const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+      const u = smooth(xf), v = smooth(yf);
+      return lerp(lerp(R(xi, yi), R(xi + 1, yi), u), lerp(R(xi, yi + 1), R(xi + 1, yi + 1), u), v);
+    };
+  }
+  function fbm(n, x, y, oct = 5) {
+    let s = 0, a = .5, f = 1;
+    for (let i = 0; i < oct; i++) { s += a * n(x * f, y * f); a *= .5; f *= 2.03; }
+    return s;
   }
 
   // ---------- escena ----------
@@ -206,21 +241,63 @@
     const canvas = $('#sky'), ctx = canvas.getContext('2d');
     let W = 0, H = 0, DPR = 1;
     const cam = { x: 0, y: 0, k: 1 };
-    // mismo criterio que el CSS: móvil o tableta en vertical → texto abajo, red arriba
+    // mismo criterio que el CSS: móvil o tableta en vertical → red arriba, texto debajo
     const stacked = () => W <= 760 || (W <= 1100 && H > W);
-    let hover = null, selected = null, flash = 0, lastT = performance.now(), crossReveal = 0;
-    let activeBranch = null;
-    const avatar = new Image();
-    let avatarAlpha = 0;
-    avatar.src = P.avatar || G.user.avatar_url;
+    const horizonY = () => stacked() ? H * .54 : H * .84;
+    let hover = null, selected = null, flash = 0, flashX = 0, lastT = performance.now(), crossReveal = 0;
+    let activeBranch = null, hoverNear = new Set();
+    const photo = new Image();
+    photo.src = P.avatar || G.user.avatar_url;
 
-    // estrellas de fondo, en pantalla
-    let stars = [];
+    // ---------- paisaje: nubes, el Ávila, las luces de la costa y la lluvia ----------
+    let clouds = null, cloudsLit = null, ridge = [], lights = [], rain = [];
+    const cloudNoise = noise2(), ridgeNoise = noise2();
+    function buildLandscape() {
+      // con la pestaña oculta la ventana puede medir 0: se reconstruye en el siguiente resize
+      if (W < 1 || H < 1) { clouds = cloudsLit = null; ridge = []; lights = []; rain = []; return; }
+      const hy = horizonY(), S = 4;
+      const cw = Math.ceil(W * 1.3 / S), ch = Math.ceil(hy / S);
+      const base = document.createElement('canvas'), lit = document.createElement('canvas');
+      base.width = lit.width = cw; base.height = lit.height = ch;
+      const bi = base.getContext('2d').createImageData(cw, ch), li = lit.getContext('2d').createImageData(cw, ch);
+      const cc = parseInt(C.cloud.slice(1), 16), gc = parseInt(C.glow.slice(1), 16);
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          const nx = x / cw * 6, ny = y / ch * 3.2;
+          const warp = fbm(cloudNoise, nx * .5 + 7, ny * .5, 3);
+          const d = fbm(cloudNoise, nx + warp * 1.6, ny * 1.4 + warp, 5);
+          const dens = smooth(clamp((d - .38) / .32)) * (1 - .35 * (y / ch));
+          const i = (y * cw + x) * 4;
+          bi.data[i] = cc >> 16; bi.data[i + 1] = (cc >> 8) & 255; bi.data[i + 2] = cc & 255; bi.data[i + 3] = dens * 170;
+          const edge = clamp(dens * 1.4 - fbm(cloudNoise, nx * 2, ny * 2, 2) * .5);
+          li.data[i] = gc >> 16; li.data[i + 1] = (gc >> 8) & 255; li.data[i + 2] = gc & 255; li.data[i + 3] = edge * 235;
+        }
+      }
+      base.getContext('2d').putImageData(bi, 0, 0); lit.getContext('2d').putImageData(li, 0, 0);
+      clouds = base; cloudsLit = lit;
+
+      // El Ávila: una cresta larga con picos, detrás de la costa
+      const mh = stacked() ? H * .1 : H * .17;
+      ridge = [];
+      for (let x = -10; x <= W + 10; x += 6) {
+        const u = x / W;
+        const h = mh * (.45 + .55 * Math.sin(Math.PI * clamp(u * 1.1 - .05)) ** .7) * (.75 + .35 * fbm(ridgeNoise, u * 9, .5, 4));
+        ridge.push([x, hy - h]);
+      }
+      const ridgeAt = x => { const i = clamp(Math.round((x + 10) / 6), 0, ridge.length - 1); return ridge[i][1]; };
+      lights = Array.from({ length: Math.round(W / 5) }, () => {
+        const x = Math.random() * W, top = ridgeAt(x);
+        const y = hy - 2 - Math.pow(Math.random(), 2.6) * (hy - top) * .55;
+        return { x, y, r: .6 + Math.random() * 1.1, a: .45 + Math.random() * .55, warm: Math.random() > .18, p: Math.random() * 6.28 };
+      });
+      rain = Array.from({ length: REDUCED ? 0 : Math.round(W * H / 7000) }, () => ({ x: Math.random() * W, y: Math.random() * H, l: 8 + Math.random() * 14, v: 700 + Math.random() * 500 }));
+    }
+
     function resize() {
       DPR = Math.min(devicePixelRatio || 1, 2);
       W = innerWidth; H = innerHeight;
       canvas.width = W * DPR; canvas.height = H * DPR;
-      stars = Array.from({ length: Math.round(W * H / 7000) }, () => ({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.1 + .2, p: Math.random() * 6.28, z: Math.random() }));
+      buildLandscape();
       story.measure();
     }
 
@@ -235,51 +312,54 @@
       while (q.length) { const n = q.shift(); order.push(incoming.get(n.id)); q.push(...n.children); }
       order.forEach((e, i) => { e.threshold = .9 * i / order.length; });
     }
-    for (const n of graph.nodes) { n.pop = n.type === 'root' ? 1 : 0; }
+    for (const n of graph.nodes) n.pop = n.type === 'root' ? 1 : 0;
 
-    function regen(e, rough) {
-      e.path = boltPath(e.a.x, e.a.y, e.b.x, e.b.y, rough ?? (e.kind === 'cross' ? .1 : .2), e.kind === 'cross' ? 5 : 6);
+    function regen(e) {
+      // los rayos que salen del retrato arrancan en su borde, no en el centro
+      let { x: ax, y: ay } = e.a;
+      if (e.a.type === 'root') { const a = Math.atan2(e.b.y, e.b.x); ax = Math.cos(a) * PHOTO_R; ay = Math.sin(a) * PHOTO_R; }
+      e.path = boltPath(ax, ay, e.b.x, e.b.y, e.kind === 'cross' ? .1 : .2, e.kind === 'cross' ? 5 : 6);
       e.forks = e.kind === 'tree' && e.a.type !== 'sub' ? makeForks(e.path) : [];
     }
-    edges.forEach(e => regen(e));
+    edges.forEach(regen);
 
-    const queue = []; // impulsos programados: { t, e }
-    function strike(e, delay = 0) {
-      if (REDUCED) return;
-      queue.push({ t: performance.now() + delay, e });
-    }
+    const queue = []; // descargas programadas: { t, e, power, restrike }
+    const strike = (e, delay = 0, power = 1, restrike = true) => { if (!REDUCED) queue.push({ t: performance.now() + delay, e, power, restrike }); };
     function cascade(e, depth) {
       if (depth > 2) return;
       for (const c of e.b.children) {
         const ce = incoming.get(c.id);
-        if (ce.grow > .99 && Math.random() < .5) { strike(ce, 70 + Math.random() * 90); ce.depth = depth + 1; }
+        if (ce.grow > .99 && Math.random() < .5) { strike(ce, 70 + Math.random() * 90, .9, false); ce.depth = depth + 1; }
       }
+    }
+    function lightUp(e, power) {
+      regen(e); e.strike = Math.max(e.strike, power);
+      flash = Math.max(flash, power * (e.b.type === 'hub' ? 1 : .5));
+      flashX = toScreen((e.a.x + e.b.x) / 2, 0)[0];
     }
 
     // ---------- cámara ----------
+    const containerLeft = () => Math.max(clamp(W * .04, 16, 48), (W - 1440) / 2 + 48);
     function viewArea() {
-      if (stacked()) return { x: 0, y: 64, w: W, h: H * .52 };
-      const left = Math.min(W * .44, 40 + Math.min(440, W * .38) + 40);
-      return { x: left, y: 64, w: W - left - 40, h: H - 96 };
+      if (stacked()) return { x: 0, y: 64, w: W, h: H * .5 - 44 };
+      const left = containerLeft() + Math.min(32 * 16, W * .4) + 24;
+      return { x: left, y: 70, w: W - left - containerLeft(), h: horizonY() - H * .17 - 70 };
     }
     // el margen va en píxeles de pantalla porque las etiquetas no escalan con el zoom
     function fitCam(points) {
       const A = viewArea();
-      const padX = stacked() ? 96 : 120, padY = 36;
+      const padX = stacked() ? 96 : 130, padY = 30;
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (const p of points) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
-      const k = clamp(Math.min((A.w - padX * 2) / (x1 - x0 || 1), (A.h - padY * 2) / (y1 - y0 || 1)), .16, 1.6);
-      return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k, A };
+      const k = clamp(Math.min((A.w - padX * 2) / (x1 - x0 || 1), (A.h - padY * 2) / (y1 - y0 || 1)), .16, 1.5);
+      return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k };
     }
     function camFor(i) {
       const n = graph.hubs.length;
-      if (i <= 0) {
-        const A = viewArea();
-        return { x: 0, y: 0, k: clamp(Math.min(A.w, A.h) / (GEM_R * 5.2), .8, 2.4) };
-      }
+      if (i <= 0) return { x: 0, y: 0, k: stacked() ? 1.1 : 1.45 };
       if (i > n) return fitCam(graph.nodes);
-      const h = graph.hubs[i - 1], pts = [graph.root];
-      (function walk(x) { pts.push(x); x.children.forEach(walk); })(h);
+      const pts = [graph.root];
+      (function walk(x) { pts.push(x); x.children.forEach(walk); })(graph.hubs[i - 1]);
       return fitCam(pts);
     }
     const toScreen = (x, y) => {
@@ -306,16 +386,87 @@
       return { target, reveal };
     }
 
-    // ---------- dibujo ----------
-    function drawStars(t) {
+    // ---------- dibujo del paisaje ----------
+    function drawLandscape(t, dt) {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      for (const s of stars) {
-        const px = (s.x - cam.x * .04 * s.z) % W, py = (s.y - cam.y * .04 * s.z) % H;
-        ctx.globalAlpha = .2 + .4 * (REDUCED ? .5 : (Math.sin(t / 1300 + s.p) + 1) / 2);
-        ctx.fillStyle = s.z > .8 ? '#ffd27a' : '#cfe6ff';
-        ctx.fillRect(px < 0 ? px + W : px, py < 0 ? py + H : py, s.r, s.r);
+      const hy = horizonY();
+      const sky = ctx.createLinearGradient(0, 0, 0, hy);
+      sky.addColorStop(0, C.sky); sky.addColorStop(1, C.skyLow);
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, hy);
+
+      // nubes: deriva lenta con el viento y un poco de paralaje con la cámara
+      if (clouds) {
+        const drift = REDUCED ? 0 : (t / 1000 * 4) % (W * .3);
+        const ox = -drift - cam.x * .02 * cam.k, oy = -cam.y * .015 * cam.k;
+        ctx.imageSmoothingEnabled = true;
+        ctx.globalAlpha = .9;
+        ctx.drawImage(clouds, ox, oy, W * 1.3, hy);
+        if (flash > .02) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = clamp(flash * .75);
+          ctx.drawImage(cloudsLit, ox, oy, W * 1.3, hy);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.globalAlpha = 1;
       }
-      ctx.globalAlpha = 1;
+      if (flash > .01) {
+        const g = ctx.createRadialGradient(flashX, hy * .35, 0, flashX, hy * .35, Math.max(W, H) * .7);
+        g.addColorStop(0, rgba(C.glow, flash * .2)); g.addColorStop(1, rgba(C.glow, 0));
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, hy);
+      }
+
+      // el Ávila, recortado contra el cielo; el relámpago le dibuja el perfil
+      ctx.beginPath(); ctx.moveTo(-10, hy);
+      for (const [x, y] of ridge) ctx.lineTo(x, y);
+      ctx.lineTo(W + 10, hy); ctx.closePath();
+      ctx.fillStyle = C.ridge; ctx.fill();
+      if (flash > .05) {
+        ctx.beginPath(); ridge.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y));
+        ctx.strokeStyle = rgba(C.glow, flash * .35); ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      // luces de la costa
+      for (const l of lights) {
+        const tw = REDUCED ? 1 : .85 + .15 * Math.sin(t / 700 + l.p);
+        ctx.fillStyle = rgba(l.warm ? C.sodium : C.bolt, l.a * tw);
+        ctx.fillRect(l.x, l.y, l.r, l.r);
+      }
+
+      // el mar, con el reflejo de las luces y del relámpago
+      const sea = ctx.createLinearGradient(0, hy, 0, H);
+      sea.addColorStop(0, C.ridge); sea.addColorStop(1, C.sea);
+      ctx.fillStyle = sea; ctx.fillRect(0, hy, W, H - hy);
+      for (const l of lights) {
+        if (l.y < hy - 8 || l.r < 1.3 || l.a < .7) continue;
+        const len = 4 + l.r * 10;
+        ctx.fillStyle = rgba(l.warm ? C.sodium : C.bolt, l.a * .16);
+        for (let k = 0; k < len; k += 2.5) {
+          if (Math.sin(l.p * 13 + k * 1.7) < -.3) continue;
+          const wob = REDUCED ? 0 : Math.sin(t / 300 + l.p + k * .6) * (1 + k * .12);
+          ctx.fillRect(l.x + wob - .5, hy + 2 + k, l.r * (1 + k / len), 1);
+        }
+      }
+      if (flash > .01) {
+        for (let i = 0; i < 16; i++) {
+          const y = hy + 3 + i * i * 1.5;
+          if (y > H) break;
+          const w = (80 - i * 4) * (.6 + Math.random() * .8);
+          ctx.fillStyle = rgba(C.bolt, flash * .3 * (1 - i / 16));
+          ctx.fillRect(flashX - w / 2 + (Math.random() - .5) * 12, y, w, 1.2);
+        }
+      }
+
+      // lluvia fina, inclinada por el viento
+      if (rain.length) {
+        ctx.strokeStyle = rgba(C.mist, .13 + flash * .25); ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (const d of rain) {
+          d.y += d.v * dt; d.x -= d.v * dt * .12;
+          if (d.y > H) { d.y = -d.l; d.x = Math.random() * W * 1.1; }
+          ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.l * .12, d.y - d.l);
+        }
+        ctx.stroke();
+      }
     }
 
     function worldTransform() {
@@ -334,182 +485,153 @@
       }
     }
 
-    function drawBolt(e, color, alphaMul) {
+    // un canal ionizado tenue que se enciende por completo con cada descarga
+    function drawBolt(e, alphaMul) {
       if (e.grow <= .001) return;
       const pts = e.path, upto = e.grow * (pts.length - 1), k = cam.k;
-      const I = (e.kind === 'cross' ? .16 : .38 + (e.b.branch === activeBranch ? .14 : 0)) * alphaMul + e.strike * (.7 + .3 * Math.random());
-      const passes = e.kind === 'cross' ? [[3, .12], [1, .5]] : [[9, .05], [4, .16], [1.6, .55]];
+      const base = e.kind === 'cross' ? .14 : (activeBranch && e.b.branch !== activeBranch ? .2 : .36);
+      const I = base * alphaMul + e.strike * (.75 + .25 * Math.random());
+      const passes = e.kind === 'cross' ? [[3, .1], [1, .45]] : [[14, .04], [6, .12], [2.2, .42]];
       for (const [w, a] of passes) {
         strokePts(pts, upto);
-        ctx.strokeStyle = hexA(color, clamp(a * I * 1.6));
+        ctx.strokeStyle = rgba(C.glow, clamp(a * I * 1.6));
         ctx.lineWidth = w / k * (e.kind === 'cross' ? .6 : 1);
         ctx.stroke();
       }
       strokePts(pts, upto);
-      ctx.strokeStyle = `rgba(255,255,255,${clamp(.5 * I + e.strike * .6)})`;
-      ctx.lineWidth = (e.strike > .05 ? 1.3 : .8) / k;
+      ctx.strokeStyle = rgba(C.bolt, clamp(.5 * I + e.strike * .7));
+      ctx.lineWidth = (e.strike > .05 ? 1.5 : .8) / k;
       ctx.stroke();
       if (e.strike > .05 || e.grow < 1) {
         for (const fk of e.forks) {
           if (e.grow < fk.at) continue;
-          const g = clamp((e.grow - fk.at) / (1 - fk.at)) * (fk.pts.length - 1);
-          strokePts(fk.pts, g);
-          ctx.strokeStyle = hexA(color, clamp(.25 + e.strike * .7) * (e.grow < 1 ? 1 : e.strike));
+          strokePts(fk.pts, clamp((e.grow - fk.at) / (1 - fk.at)) * (fk.pts.length - 1));
+          ctx.strokeStyle = rgba(C.bolt, clamp(.2 + e.strike * .6) * (e.grow < 1 ? 1 : e.strike));
           ctx.lineWidth = .9 / k;
           ctx.stroke();
         }
       }
-      // chispa en la punta mientras el rayo avanza
+      // líder escalonado: la punta incandescente avanza antes que el canal
       if (e.grow < 1) {
-        const i = Math.floor(upto), [x, y] = pts[Math.min(i, pts.length - 1)];
-        const r = 14 / k;
+        const [x, y] = pts[Math.min(Math.floor(upto), pts.length - 1)];
+        const r = 18 / k;
         const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
-        gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(.3, hexA(color, .6)); gr.addColorStop(1, hexA(color, 0));
+        gr.addColorStop(0, rgba(C.bolt, .95)); gr.addColorStop(.3, rgba(C.glow, .5)); gr.addColorStop(1, rgba(C.glow, 0));
         ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
       }
     }
 
-    function crystal(x, y, r, sides, rot) {
-      ctx.beginPath();
-      for (let i = 0; i < sides; i++) {
-        const a = rot + i * 6.283 / sides;
-        const rr = sides === 4 && i % 2 ? r * .72 : r;
-        ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-      }
-      ctx.closePath();
-    }
-
-    function drawNode(n, t) {
+    // los puntos tienen tamaño casi fijo en pantalla: la jerarquía la marcan el tamaño y el anillo
+    const dotSize = n => (n.type === 'hub' ? 6 : n.type === 'sub' ? 4.5 : n.big ? 4.5 : 3.4) * clamp(cam.k * 1.6, .6, 1);
+    function drawNode(n) {
       if (n.pop <= .01) return;
-      const color = BRANCHES[n.branch].color;
-      const p = n.pop, s = p < 1 ? 1 + Math.sin(p * Math.PI) * .5 : 1;
-      const isHot = n === hover || n === selected;
-      const r = n.r * s * (isHot ? 1.35 : 1);
-      const near = hover && (hover === n || hover.parent === n || n.parent === hover || hoverCross.has(n.id));
-      const dim = hover && !near ? .35 : 1;
+      const k = cam.k, p = n.pop;
+      const hot = n === hover || n === selected;
+      const dim = hover && !hoverNear.has(n.id) ? .35 : 1;
+      const r = dotSize(n) * (p < 1 ? 1 + Math.sin(p * Math.PI) * .8 : 1) * (hot ? 1.3 : 1) / k;
       ctx.globalAlpha = p * dim;
-      const glowR = r * (n.type === 'hub' ? 4.2 : 3.2);
-      const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
-      gr.addColorStop(0, hexA(color, isHot ? .6 : .35)); gr.addColorStop(1, hexA(color, 0));
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(n.x, n.y, glowR, 0, 6.283); ctx.fill();
-      const rot = n.type === 'hub' ? t / 4000 : -Math.PI / 2;
-      crystal(n.x, n.y, r, n.type === 'hub' ? 6 : 4, rot);
-      const fill = ctx.createLinearGradient(n.x - r, n.y - r, n.x + r, n.y + r);
-      fill.addColorStop(0, '#ffffff'); fill.addColorStop(.45, color); fill.addColorStop(1, hexA(color, .5));
-      ctx.fillStyle = fill; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1 / cam.k; ctx.stroke();
-      if (n.type === 'hub') {
-        crystal(n.x, n.y, r * 1.7, 6, -rot * 1.5);
-        ctx.strokeStyle = hexA(color, .5); ctx.setLineDash([3 / cam.k, 5 / cam.k]); ctx.stroke(); ctx.setLineDash([]);
+      const gr = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 3.2);
+      gr.addColorStop(0, rgba(C.glow, .45)); gr.addColorStop(1, rgba(C.glow, 0));
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(n.x, n.y, r * 3.2, 0, 6.283); ctx.fill();
+      ctx.fillStyle = C.bolt; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
+      if (n.type !== 'leaf' || hot) {
+        ctx.strokeStyle = hot ? C.sodium : rgba(C.bolt, .45);
+        ctx.lineWidth = (hot ? 1.6 : 1) / k;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r + (n.type === 'hub' ? 7 : 5) / k, 0, 6.283); ctx.stroke();
       }
       ctx.globalAlpha = 1;
     }
 
-    // joya: talla brillante vista desde arriba, con la foto engastada en la tabla
-    function drawGem(t) {
-      const R = GEM_R * (selected === graph.root || hover === graph.root ? 1.06 : 1), k = cam.k;
-      const light = t / 2600;
-      const pulse = REDUCED ? .5 : (Math.sin(t / 900) + 1) / 2;
-      const halo = ctx.createRadialGradient(0, 0, R * .6, 0, 0, R * (2.6 + pulse * .5));
-      halo.addColorStop(0, 'rgba(125,249,255,.35)'); halo.addColorStop(.5, 'rgba(182,156,255,.12)'); halo.addColorStop(1, 'rgba(125,249,255,0)');
-      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, R * 3.2, 0, 6.283); ctx.fill();
-
-      const P8 = (r, off) => Array.from({ length: 8 }, (_, j) => [Math.cos(j * Math.PI / 4 + off) * r, Math.sin(j * Math.PI / 4 + off) * r]);
-      const T = P8(R * .5, 0), S = P8(R * .74, Math.PI / 8), O = P8(R, 0), M = P8(R * .985, Math.PI / 8);
-      const facets = [];
-      for (let j = 0; j < 8; j++) {
-        const j1 = (j + 1) % 8, jm = (j + 7) % 8;
-        facets.push([T[j], T[j1], S[j]]);                // estrella
-        facets.push([T[j], S[jm], O[j], S[j]]);          // bisel
-        facets.push([S[j], O[j], M[j]]);                 // corona
-        facets.push([S[j], M[j], O[j1]]);
-      }
-      for (const f of facets) {
-        const cx = f.reduce((s, p) => s + p[0], 0) / f.length, cy = f.reduce((s, p) => s + p[1], 0) / f.length;
-        const a = Math.atan2(cy, cx);
-        const b = .25 + .75 * Math.pow(Math.max(0, Math.cos(a - light)), 3) + .25 * Math.pow(Math.max(0, Math.cos(a * 3 + light * 2)), 8);
-        const hue = 215 + 35 * Math.sin(a * 2 + light);
-        ctx.beginPath(); f.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath();
-        ctx.fillStyle = `hsl(${hue} ${45 + b * 25}% ${clamp(16 + b * 72, 0, 95)}%)`;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = .8 / k; ctx.stroke();
-      }
-      // tabla con la foto
+    // el retrato es el origen: la carga se acumula en su borde en pequeños arcos
+    let crackle = [], crackleAt = 0;
+    function drawPhoto(t) {
+      const k = cam.k, hot = selected === graph.root || hover === graph.root;
+      const R = PHOTO_R;
+      const g = ctx.createRadialGradient(0, 0, R, 0, 0, R * 2.2);
+      g.addColorStop(0, rgba(C.glow, .22 + flash * .3)); g.addColorStop(1, rgba(C.glow, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 2.2, 0, 6.283); ctx.fill();
       ctx.save();
-      ctx.beginPath(); T.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath();
-      ctx.fillStyle = '#0b1530'; ctx.fill();
-      if (avatar.complete && avatar.naturalWidth) {
-        ctx.clip();
-        ctx.globalAlpha = avatarAlpha;
-        ctx.drawImage(avatar, -R * .5, -R * .5, R, R);
-        ctx.globalAlpha = 1;
-      }
-      const sheen = ctx.createLinearGradient(-R * .5, -R * .5, R * .5, R * .5);
-      const sx = (Math.sin(light * 1.3) + 1) / 2;
-      sheen.addColorStop(clamp(sx - .2), 'rgba(255,255,255,0)'); sheen.addColorStop(sx, 'rgba(255,255,255,.28)'); sheen.addColorStop(clamp(sx + .2), 'rgba(255,255,255,0)');
-      ctx.fillStyle = sheen; ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.clip();
+      ctx.fillStyle = C.ridge; ctx.fillRect(-R, -R, R * 2, R * 2);
+      if (photo.complete && photo.naturalWidth) ctx.drawImage(photo, -R, -R, R * 2, R * 2);
       ctx.restore();
-      ctx.beginPath(); T.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath();
-      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.2 / k; ctx.stroke();
-      // destellos
-      if (!REDUCED) {
-        for (let i = 0; i < 3; i++) {
-          const ph = (t / 1700 + i / 3) % 1, a = i * 2.1 + Math.floor(t / 1700 + i / 3) * 1.3;
-          const x = Math.cos(a) * R * .8, y = Math.sin(a) * R * .8, s = Math.sin(ph * Math.PI) * 9 / Math.max(k, .6);
-          ctx.strokeStyle = `rgba(255,255,255,${Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.2 / k;
-          ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.stroke();
-        }
+      ctx.strokeStyle = hot ? C.sodium : rgba(C.bolt, .85); ctx.lineWidth = (hot ? 2 : 1.4) / k;
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.stroke();
+      if (REDUCED) return;
+      if (t > crackleAt) {
+        crackle = Array.from({ length: 2 + Math.floor(Math.random() * 2) }, () => {
+          const a = Math.random() * 6.283, b = a + .25 + Math.random() * .4, r2 = R + 3 + Math.random() * 8;
+          return boltPath(Math.cos(a) * (R + 1), Math.sin(a) * (R + 1), Math.cos(b) * r2, Math.sin(b) * r2, .3, 4);
+        });
+        crackleAt = t + 70 + Math.random() * 160;
       }
+      ctx.globalCompositeOperation = 'lighter';
+      for (const c of crackle) {
+        strokePts(c, c.length - 1);
+        ctx.strokeStyle = rgba(C.bolt, .35 + Math.random() * .3); ctx.lineWidth = .9 / k; ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
     }
 
     function drawLabels() {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
-      for (const n of graph.nodes) {
+      const m = stacked();
+      const face = getComputedStyle(document.documentElement).getPropertyValue('--font-body').trim();
+      // las etiquetas se colocan por prioridad; si una choca con otra se desplaza una línea o se omite
+      const placed = [];
+      const rank = n => (n === hover || n === selected ? 0 : n.type === 'hub' ? 1 : n.type === 'sub' ? 2 : 3);
+      const order = graph.nodes.filter(n => n.type !== 'root').sort((a, b) => rank(a) - rank(b));
+      for (const n of order) {
         if (n.pop < .5 || n.type === 'root') continue;
-        const isLeaf = n.type === 'leaf';
-        const near = hover && (hover === n || hover.parent === n || n.parent === hover || hoverCross.has(n.id));
+        const near = hover && hoverNear.has(n.id);
         const focus = n.branch === activeBranch || near || n === selected;
         const show = n.type === 'hub' || focus || (n.type === 'sub' ? cam.k >= .4 : cam.k >= .62);
         if (!show) continue;
-        const [sx, sy] = toScreen(n.x, n.y);
-        const rr = n.r * cam.k + (n.type === 'hub' ? 16 : 9);
         const c = Math.cos(n.angle), s = Math.sin(n.angle);
+        // rama activa: nombre bajo su punto; resto de ramas: en la punta exterior, fuera de sus hojas
+        const tip = n.type === 'hub' && n.branch !== activeBranch && n.children.length;
+        const [sx, sy] = tip ? toScreen(n.x + c * n.reach, n.y + s * n.reach) : toScreen(n.x, n.y);
+        const rr = tip ? 14 : dotSize(n) + (n.type === 'hub' ? 16 : 10);
         let x = sx, y = sy;
-        if (n.type === 'hub' && n.branch === activeBranch) { y = sy + rr + 8; ctx.textAlign = 'center'; }
+        if (n.type === 'hub' && !tip) { y = sy + rr + 6; ctx.textAlign = 'center'; }
         else if (Math.abs(c) > .35) { x = sx + Math.sign(c) * rr; ctx.textAlign = c > 0 ? 'left' : 'right'; }
         else { y = sy + Math.sign(s || 1) * (rr + 4); ctx.textAlign = 'center'; }
-        const m = stacked();
-        ctx.font = n.type === 'hub' ? `600 ${m ? 11 : 13}px Unbounded, sans-serif` : n.type === 'sub' ? `600 ${m ? 9.5 : 11}px Unbounded, sans-serif` : `500 ${m ? 11 : 12.5}px Manrope, sans-serif`;
-        if ('letterSpacing' in ctx) ctx.letterSpacing = n.type === 'leaf' ? '0px' : '1.5px';
-        const text = n.type === 'leaf' ? n.label : n.label.toUpperCase();
-        ctx.globalAlpha = n.pop * (hover && !near ? .35 : 1);
-        ctx.strokeStyle = 'rgba(6,6,11,.85)'; ctx.lineWidth = 4;
-        ctx.strokeText(text, x, y);
-        ctx.fillStyle = n.type === 'leaf' ? '#e6e3f0' : BRANCHES[n.branch].color;
-        ctx.fillText(text, x, y);
+        ctx.font = n.type === 'hub' ? `600 ${m ? 14 : 16}px ${face}`
+          : n.type === 'sub' ? `500 ${m ? 12.5 : 14}px ${face}`
+          : `400 ${m ? 12 : 13.5}px ${face}`;
+        const w = ctx.measureText(n.label).width, lh = m ? 15 : 17;
+        const left = () => ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - w : x - w / 2;
+        const hits = () => placed.some(r => left() < r.x + r.w && left() + w > r.x && y - lh / 2 < r.y + r.h && y + lh / 2 > r.y);
+        let tries = 0;
+        while (hits() && tries < 4) { y += (tries % 2 ? -1 : 1) * lh * (tries + 1); tries++; }
+        if (hits() && rank(n) > 1) continue;
+        placed.push({ x: left() - 3, y: y - lh / 2, w: w + 6, h: lh });
+        ctx.globalAlpha = n.pop * (hover && !near ? .3 : 1);
+        ctx.strokeStyle = rgba(C.sky, .85); ctx.lineWidth = 4;
+        ctx.strokeText(n.label, x, y);
+        ctx.fillStyle = n === hover || n === selected ? C.sodium : n.type === 'leaf' ? C.mist : C.ink;
+        ctx.fillText(n.label, x, y);
       }
-      if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
       ctx.globalAlpha = 1;
     }
 
     // ---------- bucle ----------
-    let hoverCross = new Set(), nextAmbient = 0;
+    let nextAmbient = 0;
     function frame(t) {
       const dt = Math.min(.05, (t - lastT) / 1000); lastT = t;
       const { target, reveal } = scrollState();
       const ease = REDUCED ? 1 : 1 - Math.pow(.0015, dt);
       cam.x = lerp(cam.x, target.x, ease); cam.y = lerp(cam.y, target.y, ease); cam.k = lerp(cam.k, target.k, ease);
-      avatarAlpha = REDUCED ? 1 : Math.min(1, avatarAlpha + dt * .8);
 
-      // crecimiento de rayos según el scroll
+      // los rayos crecen según el scroll
       graph.hubs.forEach((h, i) => {
         const r = reveal[i];
         (function walk(n) {
           const e = incoming.get(n.id);
           const want = r > e.threshold + .02 ? 1 : 0;
-          if (want && !e.target) { regen(e); e.strike = 1; if (n.type === 'hub') flash = .5; }
+          if (want && !e.target) lightUp(e, 1);
           e.target = want;
           n.children.forEach(walk);
         })(h);
@@ -517,8 +639,8 @@
       for (const e of tree) {
         if (REDUCED) e.grow = e.target;
         else e.grow = e.target ? Math.min(1, e.grow + dt / (e.b.type === 'hub' ? .38 : .26)) : Math.max(0, e.grow - dt / .2);
-        const nt = e.grow > .98 ? 1 : 0;
-        e.b.pop = REDUCED ? nt : nt ? Math.min(1, e.b.pop + dt / .35) : Math.max(0, e.b.pop - dt / .2);
+        const on = e.grow > .98 ? 1 : 0;
+        e.b.pop = REDUCED ? on : on ? Math.min(1, e.b.pop + dt / .35) : Math.max(0, e.b.pop - dt / .2);
       }
       for (const e of crossE) {
         const ok = e.a.pop > .9 && e.b.pop > .9;
@@ -528,44 +650,34 @@
         e.grow = REDUCED ? want : want ? Math.min(1, e.grow + dt / .35) : Math.max(0, e.grow - dt / .3);
       }
 
-      // impulsos: ambientales + programados
+      // tormenta: una descarga cada pocos segundos, con sus réplicas, que baja por la rama
       if (!REDUCED && t > nextAmbient && !document.hidden) {
         const live = tree.filter(e => e.grow > .99);
         if (live.length) { const e = live[Math.floor(Math.random() * live.length)]; strike(e); e.depth = 0; }
-        nextAmbient = t + 700 + Math.random() * 1400;
+        nextAmbient = t + 2800 + Math.random() * 4000;
       }
       for (let i = queue.length - 1; i >= 0; i--) {
-        if (queue[i].t <= t) {
-          const { e } = queue[i]; queue.splice(i, 1);
-          regen(e); e.strike = 1;
-          if (e.kind === 'tree') cascade(e, e.depth || 0);
-        }
+        if (queue[i].t > t) continue;
+        const { e, power, restrike } = queue[i]; queue.splice(i, 1);
+        lightUp(e, power);
+        if (restrike) { strike(e, 60 + Math.random() * 40, power * .6, false); strike(e, 150 + Math.random() * 80, power * .4, false); }
+        if (e.kind === 'tree' && power > .8) cascade(e, e.depth || 0);
       }
       for (const e of edges) {
-        e.strike *= Math.pow(.02, dt);
+        e.strike *= Math.pow(.015, dt);
         if (e.strike > .15 && t > e.regenAt) { regen(e); e.regenAt = t + 45 + Math.random() * 40; } // parpadeo
       }
-      flash *= Math.pow(.01, dt);
+      flash *= Math.pow(.003, dt);
 
-      // render
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      drawStars(t);
+      drawLandscape(t, dt);
       worldTransform();
       ctx.globalCompositeOperation = 'lighter';
-      for (const e of crossE) drawBolt(e, BRANCHES[e.b.branch].color, hover && (hover === e.a || hover === e.b) ? 2.2 : crossReveal * .3);
-      for (const e of tree) {
-        const dim = hover && !(e.a === hover || e.b === hover) ? .45 : 1;
-        drawBolt(e, BRANCHES[e.b.branch].color, dim);
-      }
+      for (const e of crossE) drawBolt(e, hover && (hover === e.a || hover === e.b) ? 2.2 : crossReveal * .3);
+      for (const e of tree) drawBolt(e, hover && !(e.a === hover || e.b === hover) ? .45 : 1);
       ctx.globalCompositeOperation = 'source-over';
-      for (const n of graph.nodes) if (n.type !== 'root') drawNode(n, t);
-      drawGem(t);
+      for (const n of graph.nodes) if (n.type !== 'root') drawNode(n);
+      drawPhoto(t);
       drawLabels();
-      if (flash > .01) {
-        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-        ctx.fillStyle = `rgba(200,240,255,${flash * .12})`; ctx.fillRect(0, 0, W, H);
-      }
       requestAnimationFrame(frame);
     }
 
@@ -576,7 +688,7 @@
       for (const n of graph.nodes) {
         if (n.pop < .6) continue;
         const d = Math.hypot(n.x - wx, n.y - wy) * cam.k;
-        const lim = n.type === 'root' ? GEM_R * cam.k + 6 : Math.max(16, n.r * cam.k + 10);
+        const lim = n.type === 'root' ? PHOTO_R * cam.k + 6 : 20;
         if (d < lim && d < bd) { best = n; bd = d; }
       }
       return best;
@@ -584,14 +696,14 @@
     function setHover(n) {
       if (n === hover) return;
       hover = n;
-      hoverCross = new Set();
+      hoverNear = new Set(n ? [n.id] : []);
       canvas.style.cursor = n ? 'pointer' : '';
+      story.mark(n);
       if (!n) return;
       for (const e of edges) {
-        if (e.a === n || e.b === n) {
-          if (e.kind === 'cross') hoverCross.add(e.a === n ? e.b.id : e.a.id);
-          if (e.grow > .99) strike(e, Math.random() * 120);
-        }
+        if (e.a !== n && e.b !== n) continue;
+        hoverNear.add(e.a.id); hoverNear.add(e.b.id);
+        if (e.grow > .99) strike(e, Math.random() * 120, .8, false);
       }
     }
     canvas.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') setHover(pick(e.clientX, e.clientY)); });
@@ -619,78 +731,77 @@
     addEventListener('resize', resize);
     resize();
     requestAnimationFrame(frame);
-    return { focusNode, select, clearSelection() { selected = null; } };
+    return { focusNode, hover: setHover, clearSelection() { selected = null; } };
   }
 
-  // ---------- capítulos (HTML sobre el canvas) ----------
+  // ---------- capítulos de texto sobre el cielo ----------
   const story = {
-    sections: [], tops: [],
-    build(graph, P, G) {
-      const hubText = {
-        about: P.bio,
-        projects: `${graph.repos.length} proyectos públicos, leídos en vivo desde GitHub. Cada uno se conecta con su lenguaje y con las habilidades que usa.`,
-        langs: 'Los lenguajes salen de mis repositorios: cuantos más proyectos, más grande el cristal.',
-        skills: 'Lo que sé hacer, agrupado por área. Cada habilidad lanza un rayo hacia los proyectos donde la apliqué.',
-        career: 'Experiencia y formación.',
-        social: 'Dónde encontrarme.',
+    sections: [], tops: [], hubIndex: {},
+    build(graph, P) {
+      const item = (n, sub) => `<li><button type="button" class="item" data-node="${esc(n.id)}"><b>${esc(n.label)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</button></li>`;
+      const inline = list => `<ul class="inline">${list.map(n => item(n)).join('')}</ul>`;
+      const extraCount = graph.repos.filter(r => r.extra).length;
+      const body = {
+        about: h => `<h2>Sobre mí</h2><p>${esc(P.bio)}</p>${inline(h.children.filter(c => c.id !== 'about:loc'))}`,
+        projects: h => `<h2>Proyectos</h2><p>${plural(graph.repos.length - extraCount, 'repositorio público', 'repositorios públicos')} leídos en vivo desde GitHub${extraCount ? ', más el trabajo que no vive en un repositorio público' : ''}.</p>
+          <ul class="items">${h.children.map(n => item(n, brief(n.data.repo.description))).join('')}</ul>`,
+        langs: h => `<h2>Lenguajes</h2><p>Contados a partir de mis proyectos.</p>
+          <ul class="items">${h.children.map(n => item(n, plural(n.data.count, 'proyecto', 'proyectos'))).join('')}</ul>`,
+        skills: h => `<h2>Habilidades</h2><p>Agrupadas por área. Cada una se conecta con los proyectos donde la usé.</p>
+          ${h.children.map(s => `<h3>${esc(s.label)}</h3>${inline(s.children)}`).join('')}`,
+        career: h => `<h2>Experiencia</h2><p>El recorrido completo está en mi perfil de LinkedIn.</p><ul class="items">${h.children.map(n => n.data.kind === 'link'
+          ? `<li><a class="item" data-node="${esc(n.id)}" href="${esc(n.data.link.url)}" target="_blank" rel="noopener"><b>${esc(n.label)}</b><span>${esc(bare(n.data.link.url))}</span></a></li>`
+          : item(n, [n.data.job.org || n.data.job.school, n.data.job.period].filter(Boolean).join(', '))).join('')}</ul>`,
+        social: h => `<h2>Contacto</h2><p>La forma más rápida de hablar conmigo es por correo.</p>
+          <ul class="items">${h.children.map(n => `<li><a class="item" data-node="${esc(n.id)}" href="${esc(n.data.link.url)}" ${/^mailto:/.test(n.data.link.url) ? '' : 'target="_blank" rel="noopener"'}><b>${esc(n.label)}</b><span>${esc(bare(n.data.link.url))}</span></a></li>`).join('')}</ul>`,
       };
-      const n = graph.hubs.length;
-      const chip = (node, color) => `<a href="#" class="chip" style="--c:${color}" data-node="${esc(node.id)}">${esc(node.label)}</a>`;
-      const leaves = h => {
-        const out = [];
-        (function walk(x) { x.children.forEach(c => { if (c.type === 'leaf') out.push(c); walk(c); }); })(h);
-        return out;
-      };
+      const email = (P.links || []).find(l => /^mailto:/.test(l.url));
       const html = [`
-        <section class="chapter intro" data-i="0"><div class="card">
-          <div class="kicker"><i style="background:#7df9ff;color:#7df9ff"></i>${esc(P.handle)}</div>
+        <section class="chapter intro" data-i="0" id="inicio"><div class="copy">
           <h1>${esc(P.name)}</h1>
-          <p class="headline">${esc(P.headline)}</p>
-          <p>${esc(P.location || '')}</p>
-          <div class="scroll-cue"><b></b>Desliza para encender la red</div>
-        </div></section>`];
-      graph.hubs.forEach((h, i) => {
-        const c = BRANCHES[h.branch].color;
-        html.push(`
-        <section class="chapter" data-i="${i + 1}"><div class="card">
-          <div class="kicker" style="color:${c}"><i style="background:${c};color:${c}"></i>${String(i + 1).padStart(2, '0')} / ${String(n).padStart(2, '0')}</div>
-          <h2>${esc(h.label)}</h2>
-          <p>${esc(hubText[h.branch] || '')}</p>
-          ${h.children.some(x => x.type === 'sub')
-            ? h.children.map(s => `<div class="kicker" style="margin-top:14px">${esc(s.label)}</div><div class="chips">${s.children.map(x => chip(x, c)).join('')}</div>`).join('')
-            : `<div class="chips">${leaves(h).map(x => chip(x, c)).join('')}</div>`}
-        </div></section>`);
-      });
-      const links = (P.links || []).filter(l => l.url);
-      html.push(`
-        <section class="chapter final" data-i="${n + 1}"><div class="card">
-          <div class="kicker"><i style="background:#ffd27a;color:#ffd27a"></i>La red completa</div>
-          <h2>Todo conectado</h2>
-          <p>Pasa el cursor o toca cualquier cristal para ver sus conexiones y sus detalles.</p>
+          <p class="lede">Hago herramientas que resuelven cosas concretas, desde ${esc((P.location || 'Venezuela').split(',')[0])}.</p>
           <div class="actions">
-            ${links.slice(0, 3).map((l, i) => `<a class="btn${i ? ' ghost' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}
-            <button class="btn ghost" type="button" data-cv>Ver CV</button>
+            <a class="btn" href="#projects" data-jump="projects">Ver proyectos</a>
+            <button class="btn quiet" type="button" data-cv>Ver CV</button>
           </div>
+        </div></section>`];
+      graph.hubs.forEach((h, i) => html.push(`<section class="chapter" data-i="${i + 1}" id="${h.branch}"><div class="copy">${body[h.branch](h)}</div></section>`));
+      html.push(`
+        <section class="chapter final" data-i="${graph.hubs.length + 1}"><div class="copy">
+          <h2>Así se conecta todo</h2>
+          <p>Cada proyecto está unido a su lenguaje y a las habilidades que usa. Pasa el cursor o toca un punto para ver el detalle.</p>
+          <div class="actions">
+            ${email ? `<a class="btn" href="${esc(email.url)}">Escribirme</a>` : ''}
+            <button class="btn quiet" type="button" data-cv>Ver CV</button>
+          </div>
+          <p class="colophon">© ${new Date().getFullYear()} ${esc(P.name)}. Proyectos leídos en vivo desde GitHub.</p>
         </div></section>`);
       $('#story').innerHTML = html.join('');
       this.sections = [...document.querySelectorAll('.chapter')];
+      this.hubIndex = Object.fromEntries(graph.hubs.map((h, i) => [h.branch, i + 1]));
 
-      $('#dots').innerHTML = this.sections.map((s, i) => {
-        const c = i === 0 ? '#7df9ff' : i > n ? '#ffd27a' : BRANCHES[graph.hubs[i - 1].branch].color;
-        const label = i === 0 ? 'Inicio' : i > n ? 'Red completa' : graph.hubs[i - 1].label;
-        return `<a href="#" style="--c:${c}" data-go="${i}" title="${esc(label)}"><span>${esc(label)}</span></a>`;
-      }).join('');
-      $('#dots').addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); this.goTo(+a.dataset.go); } });
-      $('#story').addEventListener('click', e => {
+      const root = $('#story');
+      root.addEventListener('click', e => {
         const a = e.target.closest('[data-node]');
-        if (a) { e.preventDefault(); scene.focusNode(GRAPH.byId.get(a.dataset.node)); }
+        if (a && a.tagName === 'BUTTON') { e.preventDefault(); scene.focusNode(GRAPH.byId.get(a.dataset.node)); }
         if (e.target.closest('[data-cv]')) setView('cv');
+      });
+      // pasar el ratón por el texto ilumina su punto en la red
+      root.addEventListener('pointerover', e => {
+        const a = e.target.closest('[data-node]');
+        if (a) scene.hover(GRAPH.byId.get(a.dataset.node));
+      });
+      root.addEventListener('pointerout', e => {
+        const a = e.target.closest('[data-node]');
+        if (a && !a.contains(e.relatedTarget)) scene.hover(null);
       });
       this.measure();
     },
-    measure() {
-      this.tops = this.sections.map(s => ({ top: s.offsetTop, h: s.offsetHeight }));
+    mark(n) {
+      document.querySelectorAll('.item.hot').forEach(x => x.classList.remove('hot'));
+      if (n) document.querySelectorAll(`.item[data-node="${CSS.escape(n.id)}"]`).forEach(x => x.classList.add('hot'));
     },
+    measure() { this.tops = this.sections.map(s => ({ top: s.offsetTop, h: s.offsetHeight })); },
     progress() {
       const c = scrollY + innerHeight * .5;
       let i = 0;
@@ -702,11 +813,6 @@
       const s = this.tops[i];
       if (s) scrollTo({ top: s.top + (i === 0 ? 0 : s.h * .25), behavior: REDUCED ? 'auto' : 'smooth' });
     },
-    tick() {
-      const { i } = this.progress();
-      this.sections.forEach((s, j) => s.classList.toggle('in', j === i));
-      document.querySelectorAll('#dots a').forEach((a, j) => a.classList.toggle('on', j === i));
-    },
   };
 
   // ---------- panel de detalle ----------
@@ -717,123 +823,91 @@
     body.innerHTML = panelHTML(d);
     panel.classList.add('open');
     panel.setAttribute('aria-hidden', 'false');
-    body.querySelectorAll('[data-node]').forEach(el => el.addEventListener('click', e => {
-      e.preventDefault();
-      scene.focusNode(GRAPH.byId.get(el.dataset.node));
-    }));
+    body.querySelectorAll('button[data-node]').forEach(el => el.addEventListener('click', () => scene.focusNode(GRAPH.byId.get(el.dataset.node))));
     panel.scrollTop = 0;
   }
   function closePanel() { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); scene?.clearSelection(); }
   panel.querySelector('.close').addEventListener('click', closePanel);
   addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 
-  const colorOf = d => d.type === 'root' ? '#7df9ff' : BRANCHES[d.branch].color;
-  const kicker = d => {
-    const c = colorOf(d);
-    const txt = d.type === 'root' ? 'Perfil' : d.type === 'hub' ? 'Rama' : BRANCHES[d.branch].label;
-    return `<div class="kicker" style="color:${c}"><i style="background:${c};color:${c}"></i>${esc(txt)}</div>`;
-  };
-  const nodeChips = (list, c) => `<div class="chips">${list.map(n => `<a href="#" class="chip" style="--c:${c || colorOf(n)}" data-node="${esc(n.id)}">${esc(n.label)}</a>`).join('')}</div>`;
-  const linkBtn = (l, ghost) => `<a class="btn${ghost ? ' ghost' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`;
+  const nodeList = list => `<ul class="items">${list.map(n => `<li><button type="button" class="item" data-node="${esc(n.id)}"><b>${esc(n.label)}</b></button></li>`).join('')}</ul>`;
+  const linkBtn = (label, url, quiet) => `<a class="btn${quiet ? ' quiet' : ''}" href="${esc(url)}" ${/^mailto:/.test(url) ? '' : 'target="_blank" rel="noopener"'}>${esc(label)}</a>`;
+  const facts = rows => `<dl class="facts">${rows.filter(r => r[1] !== '' && r[1] != null).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
 
   function panelHTML(d) {
     const x = d.data, P = PROFILE, U = GH.user;
+    const where = d.type === 'hub' ? 'Rama' : BRANCH_LABEL[d.branch];
     switch (x.kind) {
-      case 'root': {
-        const stars = GRAPH.repos.reduce((s, r) => s + r.stars, 0);
-        return `${kicker(d)}
-          <img class="avatar" src="${esc(P.avatar || U.avatar_url)}" alt="">
+      case 'root':
+        return `<img class="avatar" src="${esc(P.avatar || U.avatar_url)}" alt="">
           <h2>${esc(P.name)}</h2>
-          <div class="meta"><span>${esc(P.handle)}</span><span>${esc(P.location || U.location || '')}</span></div>
-          <p class="headline">${esc(P.headline)}</p>
           <p>${esc(P.bio || U.bio)}</p>
-          <div class="stats">
-            <div><b>${GRAPH.repos.length}</b><span>proyectos</span></div>
-            <div><b>${stars}</b><span>estrellas</span></div>
-            <div><b>${new Date(U.created_at).getFullYear()}</b><span>en GitHub desde</span></div>
-          </div>
-          <div class="actions">${(P.links || []).filter(l => l.url).map((l, i) => linkBtn(l, i > 0)).join('')}</div>`;
-      }
+          ${facts([['Usuario', P.handle], ['Ubicación', P.location], ['Proyectos', GRAPH.repos.length], ['En GitHub desde', new Date(U.created_at).getFullYear()]])}
+          <div class="actions">${(P.links || []).filter(l => /^mailto:/.test(l.url)).map(l => linkBtn('Escribirme', l.url)).join('')}${linkBtn('GitHub', U.html_url || `https://github.com/${P.github}`, true)}</div>`;
       case 'hub':
       case 'group':
-        return `${kicker(d)}<h2>${esc(d.label)}</h2>
-          <p>${d.children.length} ${d.children.length === 1 ? 'conexión' : 'conexiones'} en esta rama.</p>
-          ${nodeChips(d.children)}`;
+        return `<p class="branch">${esc(where)}</p><h2>${esc(d.label)}</h2>${nodeList(d.children)}`;
       case 'repo': {
         const r = x.repo;
         const skills = GRAPH.nodes.filter(n => n.data.kind === 'skill' && n.data.repos.includes(r.name));
-        return `${kicker(d)}<h2>${esc(prettyName(r.name))}</h2>
-          <div class="meta">${r.language ? `<span>${esc(r.language)}</span>` : ''}<span class="star">★ ${r.stars}</span><span>actualizado ${esc(ago(r.pushed_at))}</span></div>
-          <p>${esc(r.description || 'Sin descripción todavía.')}</p>
-          ${r.topics.length ? `<div class="chips">${r.topics.map(t => `<span class="chip static">#${esc(t)}</span>`).join('')}</div>` : ''}
-          ${skills.length ? `<div class="kicker" style="margin-top:18px">Habilidades conectadas</div>${nodeChips(skills)}` : ''}
-          <div class="actions">
-            ${r.homepage ? linkBtn({ label: 'Ver demo', url: r.homepage }) : ''}
-            ${linkBtn({ label: 'Código', url: r.url }, !!r.homepage)}
-          </div>`;
+        const code = r.url && /github\.com/.test(r.url);
+        return `<p class="branch">Proyecto</p><h2>${esc(r.title)}</h2>
+          ${r.description ? `<p>${esc(r.description)}</p>` : ''}
+          ${facts([['Lenguaje', r.language || ''], ['Estrellas', r.extra ? '' : r.stars], ['Actualizado', r.pushed_at ? ago(r.pushed_at) : ''], ['Temas', r.topics.join(', ')]])}
+          ${skills.length ? `<p>Habilidades que usa:</p>${nodeList(skills)}` : ''}
+          <div class="actions">${r.homepage ? linkBtn(`Abrir ${r.title}`, r.homepage) : ''}${code ? linkBtn('Ver código', r.url, !!r.homepage) : ''}</div>`;
       }
       case 'lang': {
         const rs = GRAPH.nodes.filter(n => n.data.kind === 'repo' && n.data.repo.language === x.lang);
-        return `${kicker(d)}<h2>${esc(x.lang)}</h2><p>Lenguaje principal en ${x.count} ${x.count === 1 ? 'proyecto' : 'proyectos'}.</p>${nodeChips(rs)}`;
+        return `<p class="branch">Lenguaje</p><h2>${esc(x.lang)}</h2><p>Lenguaje principal en ${plural(x.count, 'proyecto', 'proyectos')}:</p>${nodeList(rs)}`;
       }
       case 'skill': {
         const rs = x.repos.map(n => GRAPH.byId.get(`repo:${n}`));
-        return `${kicker(d)}<h2>${esc(x.skill.name)}</h2>
-          <div class="meta"><span>${esc(x.group)}</span></div>
+        return `<p class="branch">Habilidad de ${esc(x.group.toLowerCase())}</p><h2>${esc(x.skill.name)}</h2>
           ${x.skill.note ? `<p>${esc(x.skill.note)}</p>` : ''}
-          ${rs.length ? `<p>Aplicada en:</p>${nodeChips(rs)}` : '<p>Área de interés y aprendizaje continuo.</p>'}`;
+          ${rs.length ? `<p>La usé en:</p>${nodeList(rs)}` : '<p>Un área que sigo explorando por mi cuenta.</p>'}`;
       }
       case 'job': {
         const j = x.job;
-        return `${kicker(d)}<h2>${esc(j.role || j.title)}</h2>
-          <div class="meta"><span>${esc(j.org || j.school || '')}</span><span>${esc(j.period || '')}</span></div>
+        return `<p class="branch">${x.edu ? 'Formación' : 'Experiencia'}</p><h2>${esc(j.role || j.title)}</h2>
+          ${facts([['Dónde', j.org || j.school || ''], ['Cuándo', j.period || '']])}
           ${j.description ? `<p>${esc(j.description)}</p>` : ''}
-          ${j.url ? `<div class="actions">${linkBtn({ label: 'Más info', url: j.url })}</div>` : ''}`;
+          ${j.url ? `<div class="actions">${linkBtn('Más información', j.url)}</div>` : ''}`;
       }
       case 'link':
-        return `${kicker(d)}<h2>${esc(x.link.label)}</h2>
-          <p>${esc(x.link.url.replace(/^mailto:|^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</p>
-          <div class="actions">${linkBtn({ label: 'Abrir', url: x.link.url })}</div>`;
+        return `<p class="branch">Contacto</p><h2>${esc(x.link.label)}</h2>
+          <p>${esc(bare(x.link.url))}</p>
+          <div class="actions">${linkBtn(/^mailto:/.test(x.link.url) ? 'Escribir correo' : `Abrir ${x.link.label}`, x.link.url)}</div>`;
       default:
-        return `${kicker(d)}<h2>${esc(x.title || d.label)}</h2><p>${esc(x.text || '')}</p>`;
+        return `<p class="branch">${esc(where)}</p><h2>${esc(x.title || d.label)}</h2><p>${esc(x.text || '')}</p>`;
     }
   }
 
   // ---------- vista CV ----------
   function renderCV(P, G, graph) {
     const U = G.user;
-    const projectCards = graph.repos.map(r => `
-      <article class="pcard">
-        <h3><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(prettyName(r.name))}</a></h3>
-        <p>${esc(r.description || 'Sin descripción todavía.')}</p>
-        <div class="meta">${r.language ? `<span>${esc(r.language)}</span>` : ''}<span class="star">★ ${r.stars}</span>${r.homepage ? `<a href="${esc(r.homepage)}" target="_blank" rel="noopener">demo ↗</a>` : ''}</div>
-      </article>`).join('');
-    const timeline = list => `<div class="timeline">${list.map(j => `
-      <div><h3>${esc(j.role || j.title)}</h3>
-      <div class="meta"><span>${esc(j.org || j.school || '')}</span><span>${esc(j.period || '')}</span></div>
-      ${j.description ? `<p>${esc(j.description)}</p>` : ''}</div>`).join('')}</div>`;
     const links = (P.links || []).filter(l => l.url);
-
+    const rows = list => `<ul class="items">${list.map(j => `<li><div class="item"><b>${esc(j.role || j.title)}</b><span>${esc([j.org || j.school, j.period].filter(Boolean).join(', '))}${j.description ? `. ${esc(j.description)}` : ''}</span></div></li>`).join('')}</ul>`;
     $('#cv').innerHTML = `<div class="cv">
       <div class="cv-head">
         <img src="${esc(P.avatar || U.avatar_url)}" alt="Foto de ${esc(P.name)}">
-        <div>
-          <h1>${esc(P.name)}</h1>
-          <p class="headline">${esc(P.headline)}</p>
-          <div class="meta"><span>${esc(P.handle)}</span><span>${esc(P.location || '')}</span></div>
-        </div>
+        <div><h1>${esc(P.name)}</h1><p>${esc(P.headline)} en ${esc(P.location || '')}</p></div>
       </div>
-      <div class="cv-actions">
-        ${links.map((l, i) => linkBtn(l, i > 0)).join('')}
-        <button class="btn ghost" type="button" onclick="print()">Imprimir / PDF</button>
+      <div class="actions">
+        <button class="btn" type="button" onclick="print()">Imprimir o guardar PDF</button>
+        ${links.map(l => linkBtn(l.label, l.url, true)).join('')}
       </div>
       <h2>Perfil</h2><p class="bio">${esc(P.bio)}</p>
-      ${P.experience?.length ? `<h2>Experiencia</h2>${timeline(P.experience)}` : ''}
-      <h2>Proyectos</h2><div class="cv-grid">${projectCards}</div>
-      ${P.skills?.length ? `<h2>Habilidades</h2>${P.skills.map(g => `
-        <div class="skill-row"><b>${esc(g.group)}</b><div class="chips">${g.items.map(s => `<span class="chip static">${esc(s.name)}</span>`).join('')}</div></div>`).join('')}` : ''}
-      ${P.education?.length ? `<h2>Formación</h2>${timeline(P.education)}` : ''}
-      <h2>Intereses</h2><div class="chips">${(P.interests || []).map(i => `<span class="chip static">${esc(i)}</span>`).join('')}</div>
+      ${P.experience?.length ? `<h2>Experiencia</h2>${rows(P.experience)}` : ''}
+      <h2>Proyectos</h2>
+      <ul class="items">${graph.repos.map(r => {
+        const href = r.homepage || r.url;
+        const inner = `<b>${esc(r.title)}</b><span>${esc(r.description || r.language || '')}</span>`;
+        return `<li>${href ? `<a class="item" href="${esc(href)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="item">${inner}</div>`}</li>`;
+      }).join('')}</ul>
+      ${P.skills?.length ? `<h2>Habilidades</h2><dl class="cv-skills">${P.skills.map(g => `<dt>${esc(g.group)}</dt><dd>${esc(g.items.map(s => s.name).join(', '))}</dd>`).join('')}</dl>` : ''}
+      ${P.education?.length ? `<h2>Formación</h2>${rows(P.education)}` : ''}
+      <h2>Intereses</h2><p>${esc((P.interests || []).join(', '))}</p>
     </div>`;
   }
 
@@ -843,7 +917,7 @@
     const cv = v === 'cv';
     if (cv === document.body.classList.contains('cv-mode')) return;
     if (cv) netScroll = scrollY;
-    document.querySelectorAll('.views button').forEach(x => { const on = x.dataset.view === v; x.classList.toggle('active', on); x.setAttribute('aria-pressed', on); });
+    $('#cv-toggle').setAttribute('aria-pressed', cv);
     document.body.classList.toggle('cv-mode', cv);
     $('#cv').hidden = !cv;
     closePanel();
@@ -851,37 +925,38 @@
     if (cv) scrollTo(0, 0);
     else { story.measure(); scrollTo(0, netScroll); }
   }
-  function setupViews() {
-    document.querySelectorAll('.views button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-    if (location.hash === '#cv') setView('cv');
-    $('#brand').addEventListener('click', e => {
+  function setupNav() {
+    $('#cv-toggle').addEventListener('click', () => setView(document.body.classList.contains('cv-mode') ? 'net' : 'cv'));
+    document.addEventListener('click', e => {
+      const a = e.target.closest('[data-jump]');
+      if (!a) return;
       e.preventDefault();
       setView('net');
-      story.goTo(0);
+      const i = story.hubIndex[a.dataset.jump];
+      if (i) story.goTo(i);
     });
+    $('#brand').addEventListener('click', e => { e.preventDefault(); setView('net'); story.goTo(0); });
+    if (location.hash === '#cv') setView('cv');
   }
 
   // ---------- arranque ----------
   async function main() {
+    readTokens();
     PROFILE = await getJSON('data/profile.json');
     GH = await loadGitHub(PROFILE.github);
-    $('#brand-name').textContent = PROFILE.name;
-    $('#brand-handle').textContent = PROFILE.handle;
+    $('#brand').textContent = PROFILE.name;
     GRAPH = buildGraph(PROFILE, GH);
     layout(GRAPH);
-    story.build(GRAPH, PROFILE, GH);
+    story.build(GRAPH, PROFILE);
     scene = createScene(GRAPH, PROFILE, GH);
     renderCV(PROFILE, GH, GRAPH);
-    setupViews();
-    const onScroll = () => story.tick();
-    addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
+    setupNav();
     document.fonts?.ready.then(() => story.measure());
     $('#loader').classList.add('gone');
   }
 
   main().catch(err => {
     console.error(err);
-    $('#loader').innerHTML = `No se pudo cargar el portafolio.<br><small>${esc(err.message)}</small>`;
+    $('#loader').textContent = `No se pudo cargar el portafolio: ${err.message.replace(/\.$/, '')}. Recarga la página para intentarlo de nuevo.`;
   });
 })();
