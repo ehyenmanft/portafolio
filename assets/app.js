@@ -53,8 +53,9 @@
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const bare = url => url.replace(/^mailto:|^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
 
+  // los datos propios se revalidan siempre: GitHub Pages los guarda 10 minutos en caché
   async function getJSON(url) {
-    const r = await fetch(url);
+    const r = await fetch(url, url.startsWith('data/') ? { cache: 'no-cache' } : undefined);
     if (!r.ok) throw new Error(`${r.status} ${url}`);
     return r.json();
   }
