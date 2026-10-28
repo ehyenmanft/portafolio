@@ -1,11 +1,11 @@
 {
   "name": "James Aranda",
   "handle": "@ehyenma.nft",
-  "headline": "Desarrollador de software y creador digital",
+  "headline": "Desarrollador de IA y Web3",
   "location": "La Guaira, Venezuela",
   "avatar": "",
   "github": "ehyenmanft",
-  "bio": "Me apasionan los videojuegos, la programación y las criptomonedas. Construyo herramientas completas que resuelven cosas concretas: un editor de vídeo retro, monitores de sismos y ciclones en tiempo real, un conversor de PDF con OCR y utilidades de escritorio para Windows.",
+  "bio": "Vengo de casi veinte años de atención al cliente y ventas en Bancaribe, Ferretería EPA y la Caracas Commodity Exchange. Hoy construyo con inteligencia artificial, Web3 y automatización: un sistema de punto de venta con radar de precios, un traductor de voz en vivo, monitores de sismos y ciclones, bots de Telegram con IA y utilidades de escritorio para Windows.",
   "interests": [
     "Videojuegos",
     "Programación",
@@ -168,6 +168,16 @@
           "repos": [
             "pdfamd"
           ]
+        },
+        {
+          "name": "Prompt engineering",
+          "repos": [
+            "bots-telegram-ia"
+          ]
+        },
+        {
+          "name": "Automatización con n8n",
+          "repos": []
         }
       ]
     },
@@ -206,14 +216,79 @@
       "group": "Web3",
       "items": [
         {
+          "name": "Blockchain y BNB Chain",
+          "repos": []
+        },
+        {
           "name": "Cripto y NFT",
+          "repos": []
+        }
+      ]
+    },
+    {
+      "group": "Idiomas",
+      "items": [
+        {
+          "name": "Español nativo",
+          "repos": []
+        },
+        {
+          "name": "Inglés C2",
           "repos": []
         }
       ]
     }
   ],
-  "experience": [],
-  "education": [],
+  "experience": [
+    {
+      "role": "Gerente de Comunicaciones y Logística",
+      "org": "NanoPower VE, C.A.",
+      "period": "nov. 2024 – actualidad",
+      "place": "Caracas"
+    },
+    {
+      "role": "Asistente del CEO",
+      "org": "NanoPower VE, C.A.",
+      "period": "nov. 2024 – abr. 2025",
+      "description": "Apoyo directo a la dirección general y a la operación (COO)."
+    },
+    {
+      "role": "Gerente de Soporte al Cliente",
+      "org": "CCSCEX, Caracas Commodity Exchange",
+      "period": "nov. 2021 – nov. 2024",
+      "place": "Caracas"
+    },
+    {
+      "role": "Asesor de ventas comerciales",
+      "org": "Ferretería EPA",
+      "period": "oct. 2009 – jun. 2019",
+      "place": "Caracas"
+    },
+    {
+      "role": "Especialista del centro de contacto",
+      "org": "Bancaribe",
+      "period": "jun. 2007 – oct. 2008",
+      "place": "Caracas"
+    },
+    {
+      "role": "Auxiliar administrativo",
+      "org": "Bancaribe",
+      "period": "jun. 2005 – jun. 2007",
+      "place": "Caracas"
+    }
+  ],
+  "education": [
+    {
+      "title": "Procesamiento de datos",
+      "school": "Platzi",
+      "period": "2022"
+    },
+    {
+      "title": "Administración y gestión de empresas",
+      "school": "Universidad Central de Venezuela",
+      "period": "2004"
+    }
+  ],
   "extraProjects": [
     {
       "name": "baratoprimo",
@@ -242,6 +317,28 @@
         "telegram",
         "ia"
       ]
+    }
+  ],
+  "certifications": [
+    {
+      "title": "BNB Chain Developer",
+      "school": "Binance Academy"
+    },
+    {
+      "title": "Cryptocurrency Deep Dive"
+    },
+    {
+      "title": "Economía Digital: Bitcoin y Criptomonedas"
+    },
+    {
+      "title": "Automatizaciones low-code con n8n"
+    },
+    {
+      "title": "Inteligencia artificial para content marketing"
+    },
+    {
+      "title": "EF SET English Certificate 78/100 (C2 Proficient)",
+      "school": "EF SET"
     }
   ]
 }

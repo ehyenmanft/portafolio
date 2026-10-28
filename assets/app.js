@@ -146,11 +146,17 @@
     }
 
     const linkedin = (P.links || []).find(l => /linkedin/i.test(l.label) && l.url);
-    if (P.experience?.length || P.education?.length || linkedin) {
+    if (P.experience?.length || P.education?.length || P.certifications?.length || linkedin) {
       const career = hub('career');
-      (P.experience || []).forEach((j, i) => child(career, { id: `job:${i}`, label: j.role, data: { kind: 'job', job: j } }));
-      (P.education || []).forEach((j, i) => child(career, { id: `edu:${i}`, label: j.title, data: { kind: 'job', job: j, edu: true } }));
-      if (linkedin) child(career, { id: 'career:linkedin', label: 'Perfil de LinkedIn', data: { kind: 'link', link: linkedin } });
+      const group = (key, label, list, make) => {
+        if (!list?.length) return;
+        const sub = child(career, { id: `cg:${key}`, type: 'sub', label, data: { kind: 'group' } });
+        list.forEach((j, i) => child(sub, make(j, i)));
+      };
+      group('work', 'Trabajo', P.experience, (j, i) => ({ id: `job:${i}`, label: j.role, data: { kind: 'job', job: j } }));
+      group('edu', 'Formación', P.education, (j, i) => ({ id: `edu:${i}`, label: j.title, data: { kind: 'job', job: j, edu: true } }));
+      group('cert', 'Certificaciones', P.certifications, (j, i) => ({ id: `cert:${i}`, label: j.title, data: { kind: 'job', job: j, cert: true } }));
+      if (linkedin && !P.experience?.length) child(career, { id: 'career:linkedin', label: 'Perfil de LinkedIn', data: { kind: 'link', link: linkedin } });
     }
 
     const socialLinks = (P.links || []).filter(l => l.url);
@@ -749,9 +755,14 @@
           <ul class="items">${h.children.map(n => item(n, plural(n.data.count, 'proyecto', 'proyectos'))).join('')}</ul>`,
         skills: h => `<h2>Habilidades</h2><p>Agrupadas por área. Cada una se conecta con los proyectos donde la usé.</p>
           ${h.children.map(s => `<h3>${esc(s.label)}</h3>${inline(s.children)}`).join('')}`,
-        career: h => `<h2>Experiencia</h2><p>El recorrido completo está en mi perfil de LinkedIn.</p><ul class="items">${h.children.map(n => n.data.kind === 'link'
-          ? `<li><a class="item" data-node="${esc(n.id)}" href="${esc(n.data.link.url)}" target="_blank" rel="noopener"><b>${esc(n.label)}</b><span>${esc(bare(n.data.link.url))}</span></a></li>`
-          : item(n, [n.data.job.org || n.data.job.school, n.data.job.period].filter(Boolean).join(', '))).join('')}</ul>`,
+        career: h => {
+          const li = (P.links || []).find(l => /linkedin/i.test(l.label) && l.url);
+          const sub = j => [j.org || j.school, j.period].filter(Boolean).join(', ');
+          return `<h2>Experiencia</h2><p>De la atención al cliente en banca y comercio a la tecnología financiera${li ? `; el detalle está en <a href="${esc(li.url)}" target="_blank" rel="noopener">LinkedIn</a>` : ''}.</p>
+            ${h.children.map(g => g.type === 'sub'
+              ? `<h3>${esc(g.label)}</h3>${g.id === 'cg:cert' ? inline(g.children) : `<ul class="items">${g.children.map(n => item(n, sub(n.data.job))).join('')}</ul>`}`
+              : '').join('')}`;
+        },
         social: h => `<h2>Contacto</h2><p>La forma más rápida de hablar conmigo es por correo.</p>
           <ul class="items">${h.children.map(n => `<li><a class="item" data-node="${esc(n.id)}" href="${esc(n.data.link.url)}" ${/^mailto:/.test(n.data.link.url) ? '' : 'target="_blank" rel="noopener"'}><b>${esc(n.label)}</b><span>${esc(bare(n.data.link.url))}</span></a></li>`).join('')}</ul>`,
       };
@@ -869,8 +880,8 @@
       }
       case 'job': {
         const j = x.job;
-        return `<p class="branch">${x.edu ? 'Formación' : 'Experiencia'}</p><h2>${esc(j.role || j.title)}</h2>
-          ${facts([['Dónde', j.org || j.school || ''], ['Cuándo', j.period || '']])}
+        return `<p class="branch">${x.cert ? 'Certificación' : x.edu ? 'Formación' : 'Experiencia'}</p><h2>${esc(j.role || j.title)}</h2>
+          ${facts([['Dónde', j.org || j.school || ''], ['Cuándo', j.period || ''], ['Lugar', j.place || '']])}
           ${j.description ? `<p>${esc(j.description)}</p>` : ''}
           ${j.url ? `<div class="actions">${linkBtn('Más información', j.url)}</div>` : ''}`;
       }
@@ -907,6 +918,7 @@
       }).join('')}</ul>
       ${P.skills?.length ? `<h2>Habilidades</h2><dl class="cv-skills">${P.skills.map(g => `<dt>${esc(g.group)}</dt><dd>${esc(g.items.map(s => s.name).join(', '))}</dd>`).join('')}</dl>` : ''}
       ${P.education?.length ? `<h2>Formación</h2>${rows(P.education)}` : ''}
+      ${P.certifications?.length ? `<h2>Certificaciones</h2>${rows(P.certifications)}` : ''}
       <h2>Intereses</h2><p>${esc((P.interests || []).join(', '))}</p>
     </div>`;
   }
