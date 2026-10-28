@@ -164,7 +164,10 @@
     const gPulses = world.append('g').attr('filter', 'url(#glow)');
     const gNodes = world.append('g');
 
-    const zoom = d3.zoom().scaleExtent([0.25, 4]).on('zoom', e => world.attr('transform', e.transform));
+    // con poco zoom (móvil) se ocultan los nombres de las hojas y crecen los de las ramas
+    const zoom = d3.zoom().scaleExtent([0.25, 4]).on('zoom', e => {
+      world.attr('transform', e.transform).classed('far', e.transform.k < .7);
+    });
     svg.call(zoom).on('dblclick.zoom', null);
 
     const color = d => d.type === 'root' ? '#f472b6' : BRANCHES[d.branch].color;
@@ -281,9 +284,9 @@
     });
 
     function highlight(d) {
-      if (!d) { nodeSel.classed('dim', false); linkSel.classed('dim', false); return; }
+      if (!d) { nodeSel.classed('dim', false).classed('near', false); linkSel.classed('dim', false); return; }
       const near = adjacency.get(d.id) || new Set([d.id]);
-      nodeSel.classed('dim', n => !near.has(n.id));
+      nodeSel.classed('dim', n => !near.has(n.id)).classed('near', n => near.has(n.id));
       linkSel.classed('dim', l => l.source.id !== d.id && l.target.id !== d.id);
       for (const l of visLinks) if (l.source.id === d.id || l.target.id === d.id) firePulse(l, l.target.id === d.id);
     }
@@ -303,7 +306,9 @@
         // centra el nodo en la zona que el panel deja libre
         const W = svg.node().clientWidth, H = svg.node().clientHeight;
         const p = W < 640 ? [W / 2, H * .3] : [(W - 400) / 2, H / 2];
-        svg.transition().duration(REDUCED ? 0 : 650).call(zoom.translateTo, d.x, d.y, p);
+        const k = Math.max(d3.zoomTransform(svg.node()).k, W < 640 ? .95 : 0);
+        const t = d3.zoomIdentity.translate(p[0], p[1]).scale(k).translate(-d.x, -d.y);
+        svg.transition().duration(REDUCED ? 0 : 650).call(zoom.transform, t);
         select(d);
       }, opened ? 450 : 0);
     }

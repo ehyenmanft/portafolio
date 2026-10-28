@@ -71,6 +71,10 @@ main { z-index: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .dim { opacity: .12 !important; }
+.far .node.leaf:not(.near) text { opacity: 0; }
+.far .node.hub text { font-size: 24px; }
+.far .node.sub text { font-size: 18px; }
+.far .node.root text { font-size: 24px; }
 .pulse { pointer-events: none; }
 
 .legend {
@@ -149,6 +153,10 @@ main { z-index: 1; }
 .timeline .item .meta { margin: 4px 0; }
 .timeline .item p { margin: 6px 0 0; color: #b4bbe4; line-height: 1.5; }
 .cv-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+
+@media (max-width: 900px) {
+  .hint { display: none; }
+}
 
 /* ---------- móvil ---------- */
 @media (max-width: 640px) {
