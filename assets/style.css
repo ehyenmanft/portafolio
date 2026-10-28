@@ -164,7 +164,8 @@ main { position: relative; z-index: 1; pointer-events: none; }
 
 /* ---------- detalle ---------- */
 #panel {
-  position: fixed; z-index: 30; top: 76px; right: max(16px, calc((100% - var(--container)) / 2 + 16px)); bottom: 24px; width: min(400px, calc(100% - 32px));
+  position: fixed; z-index: 30; top: 76px; right: max(16px, calc((100% - var(--container)) / 2 + 16px)); width: min(400px, calc(100% - 32px));
+  max-height: calc(100vh - 100px); max-height: calc(100svh - 100px); /* solo el alto que ocupa su contenido */
   background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: 6px;
   padding: 30px 28px; overflow-y: auto; transform: translateX(calc(100% + 48px)); visibility: hidden;
   transition: transform .35s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .35s;
