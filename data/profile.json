@@ -294,8 +294,8 @@
       "name": "baratoprimo",
       "title": "BaratoPrimo",
       "language": "JavaScript",
-      "url": "https://baratoprimo.ehyenma-nft.workers.dev",
-      "homepage": "https://baratoprimo.ehyenma-nft.workers.dev",
+      "url": "https://baratoprimo.com",
+      "homepage": "https://baratoprimo.com",
       "description": "Ecosistema digital venezolano que une punto de venta e inventario para comercios con un directorio público y un radar de precios geolocalizado en tiempo real. Bodegas, farmacias y comercios gestionan ventas con la tasa oficial del BCV sincronizada a diario, inventario multimoneda con kárdex, facturación con IVA y QR, tickets de 58 y 80 mm, roles y horarios estilo WhatsApp Business; los ciudadanos comparan precios en divisas y bolívares en un mapa con ruta de \"cómo llegar\" y piden por WhatsApp. HTML, CSS y JavaScript puros, PWA instalable y Supabase.",
       "topics": [
         "pos",
